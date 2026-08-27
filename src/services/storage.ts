@@ -1,4 +1,4 @@
-import { ClientProject, Invoice, Spending, AppSettings, UserProfile, ActivityLog } from '../types';
+import { ClientProject, Invoice, Spending, AppSettings, UserProfile, ActivityLog, RegisterPayload } from '../types';
 
 export const DEFAULT_SETTINGS: AppSettings = {
   currency: 'USD',
@@ -11,10 +11,14 @@ export const DEFAULT_SETTINGS: AppSettings = {
   companyWebsite: 'www.whislly.com',
   companyLogo: '',
   taxRate: 0,
-  defaultPaymentTerms: 'Net 30 days from invoice issue date. Direct bank wire transfer or credit card accepted.'
+  defaultPaymentTerms: 'Payment due within 30 days of invoice date. Direct bank wire transfer or credit card accepted.'
 };
 
-export function generateInvoiceForClient(client: ClientProject, invoiceNumSequence: number = 1): Invoice {
+export function generateInvoiceForClient(
+  client: ClientProject, 
+  invoiceNumSequence: number = 1,
+  defaultPaymentTerms?: string
+): Invoice {
   const paddedSeq = String(invoiceNumSequence).padStart(3, '0');
   const now = new Date();
   const year = now.getFullYear();
@@ -62,7 +66,7 @@ export function generateInvoiceForClient(client: ClientProject, invoiceNumSequen
     totalAmount,
     status: client.status === 'Completed' ? 'Paid' : 'Pending',
     notes: client.notes || 'Thank you for your business. Please remit payment via bank transfer.',
-    paymentTerms: 'Payment due within 30 days of invoice date.',
+    paymentTerms: defaultPaymentTerms || 'Payment due within 30 days of invoice date.',
     createdAt: client.createdAt || new Date().toISOString()
   };
 }
@@ -113,15 +117,32 @@ export const StorageService = {
     return `wisco_${dataType}_${uid}`;
   },
 
-  // Account Registration (Guarantees fresh, completely empty dataset)
+  // Account Registration with Mandatory Agency Profile Onboarding
   registerUser(
-    email: string,
-    passwordPlain: string,
+    payloadOrEmail: string | RegisterPayload,
+    passwordPlain?: string,
     companyName: string = '',
     agreedToPrivacyPolicy: boolean = true
   ): { success: boolean; user?: UserProfile; error?: string } {
     try {
-      const normalizedEmail = email.trim().toLowerCase();
+      let payload: RegisterPayload;
+      if (typeof payloadOrEmail === 'object') {
+        payload = payloadOrEmail;
+      } else {
+        payload = {
+          email: payloadOrEmail,
+          passwordPlain: passwordPlain || '',
+          companyName: companyName || '',
+          companyAddress: '',
+          companyWebsite: '',
+          companyEmail: payloadOrEmail,
+          defaultPaymentTerms: DEFAULT_SETTINGS.defaultPaymentTerms,
+          companyLogo: '',
+          agreedToPrivacyPolicy
+        };
+      }
+
+      const normalizedEmail = payload.email.trim().toLowerCase();
       const accountsRaw = localStorage.getItem(GLOBAL_KEYS.REGISTERED_ACCOUNTS);
       const accounts: Record<string, RegisteredAccount> = accountsRaw ? JSON.parse(accountsRaw) : {};
 
@@ -129,31 +150,57 @@ export const StorageService = {
         return { success: false, error: 'An account with this email address already exists. Please sign in.' };
       }
 
-      // Generate a unique Firebase/UID style identifier
+      // Generate a unique identifier
       const uid = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      const cleanCompany = (payload.companyName || '').trim() || 'Whislly Partner';
+      const cleanAddress = (payload.companyAddress || '').trim() || 'Amman, Jordan';
+      const cleanWebsite = (payload.companyWebsite || '').trim() || 'www.company.com';
+      const cleanContactEmail = (payload.companyEmail || '').trim() || normalizedEmail;
+      const cleanTerms = (payload.defaultPaymentTerms || '').trim() || DEFAULT_SETTINGS.defaultPaymentTerms;
+      const cleanLogo = payload.companyLogo || '';
+
       const userProfile: UserProfile = {
         uid,
         email: normalizedEmail,
-        displayName: normalizedEmail.split('@')[0],
-        companyName: companyName.trim() || 'Whislly Partner',
+        displayName: cleanCompany,
+        companyName: cleanCompany,
+        companyAddress: cleanAddress,
+        companyWebsite: cleanWebsite,
+        companyEmail: cleanContactEmail,
+        companyLogo: cleanLogo,
+        defaultPaymentTerms: cleanTerms,
         createdAt: new Date().toISOString(),
-        agreedToPrivacyPolicy,
+        agreedToPrivacyPolicy: payload.agreedToPrivacyPolicy,
         privacyPolicyAgreedAt: new Date().toISOString()
       };
 
-      // Save to registry
+      // Save to global accounts registry
       accounts[normalizedEmail] = {
         user: userProfile,
-        passwordHash: btoa(passwordPlain) // Standard base64 obfuscation for local credential state
+        passwordHash: btoa(payload.passwordPlain) // Standard base64 obfuscation for local credential state
       };
       localStorage.setItem(GLOBAL_KEYS.REGISTERED_ACCOUNTS, JSON.stringify(accounts));
+
+      // Persist profile into dedicated user record (wisco_profile_${uid})
+      localStorage.setItem(`wisco_profile_${uid}`, JSON.stringify(userProfile));
+
+      // Initialize isolated settings for new user with onboarding agency profile
+      const initialSettings: AppSettings = {
+        ...DEFAULT_SETTINGS,
+        companyName: cleanCompany,
+        companyAddress: cleanAddress,
+        companyWebsite: cleanWebsite,
+        companyEmail: cleanContactEmail,
+        companyLogo: cleanLogo,
+        defaultPaymentTerms: cleanTerms
+      };
 
       // CRITICAL: Initialize completely empty datasets for new user (NO hardcoded demo arrays)
       localStorage.setItem(this.getKey('clients', uid), JSON.stringify([]));
       localStorage.setItem(this.getKey('invoices', uid), JSON.stringify([]));
       localStorage.setItem(this.getKey('spendings', uid), JSON.stringify([]));
       localStorage.setItem(this.getKey('activities', uid), JSON.stringify([]));
-      localStorage.setItem(this.getKey('settings', uid), JSON.stringify(DEFAULT_SETTINGS));
+      localStorage.setItem(this.getKey('settings', uid), JSON.stringify(initialSettings));
 
       // Set active session
       this.setUser(userProfile);
@@ -184,8 +231,19 @@ export const StorageService = {
         return { success: false, error: 'Incorrect password. Please verify and try again.' };
       }
 
-      this.setUser(account.user);
-      return { success: true, user: account.user };
+      // Check if user profile is in wisco_profile_${uid}
+      let userObj = account.user;
+      try {
+        const storedProfile = localStorage.getItem(`wisco_profile_${userObj.uid}`);
+        if (storedProfile) {
+          userObj = { ...userObj, ...JSON.parse(storedProfile) };
+        }
+      } catch {
+        // ignore
+      }
+
+      this.setUser(userObj);
+      return { success: true, user: userObj };
     } catch (e) {
       console.error('Login error:', e);
       return { success: false, error: 'Failed to authenticate. Please try again.' };
@@ -211,6 +269,30 @@ export const StorageService = {
     const updated = { ...current, ...settings };
     const key = this.getKey('settings', explicitUid);
     localStorage.setItem(key, JSON.stringify(updated));
+
+    // Sync user profile record if companyLogo or defaultPaymentTerms updated
+    const uid = explicitUid || this.getCurrentUid();
+    if (uid) {
+      try {
+        const profileKey = `wisco_profile_${uid}`;
+        const profileRaw = localStorage.getItem(profileKey);
+        if (profileRaw) {
+          const profile: UserProfile = JSON.parse(profileRaw);
+          if (settings.companyLogo !== undefined) profile.companyLogo = settings.companyLogo;
+          if (settings.defaultPaymentTerms !== undefined) profile.defaultPaymentTerms = settings.defaultPaymentTerms;
+          localStorage.setItem(profileKey, JSON.stringify(profile));
+        }
+        const currentUser = this.getUser();
+        if (currentUser && currentUser.uid === uid) {
+          if (settings.companyLogo !== undefined) currentUser.companyLogo = settings.companyLogo;
+          if (settings.defaultPaymentTerms !== undefined) currentUser.defaultPaymentTerms = settings.defaultPaymentTerms;
+          this.setUser(currentUser);
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     return updated;
   },
 
@@ -276,9 +358,10 @@ export const StorageService = {
 
     // Synchronize auto invoice for this user
     const invoices = this.getInvoices(uid);
+    const userSettings = this.getSettings(uid);
     const existingInvIdx = invoices.findIndex(i => i.clientId === client.id);
     const invoiceNumSeq = invoices.length + 101;
-    const updatedInvoice = generateInvoiceForClient(client, invoiceNumSeq);
+    const updatedInvoice = generateInvoiceForClient(client, invoiceNumSeq, userSettings.defaultPaymentTerms);
 
     if (existingInvIdx !== -1) {
       invoices[existingInvIdx] = {

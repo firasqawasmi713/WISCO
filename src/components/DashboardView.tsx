@@ -293,7 +293,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Total Revenue */}
         <div 
           id="kpi-card-total-revenue"
-          className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 transition-all hover:shadow-md"
+          className="spotlight-card bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 transition-all hover:shadow-md"
         >
           <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">
             {t.totalRevenue}
@@ -310,7 +310,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Total Direct Spendings */}
         <div 
           id="kpi-card-total-spendings"
-          className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 transition-all hover:shadow-md"
+          className="spotlight-card bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 transition-all hover:shadow-md"
         >
           <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">
             {t.totalSpendings}
@@ -326,7 +326,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Operating Expenses */}
         <div 
           id="kpi-card-operating-expenses"
-          className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 transition-all hover:shadow-md"
+          className="spotlight-card bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 transition-all hover:shadow-md"
         >
           <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">
             {t.totalOperatingExpenses}
@@ -342,7 +342,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Net Profit - Featured Dark Card */}
         <div 
           id="kpi-card-net-profit"
-          className="bg-[#0F284E] dark:bg-[#071326] p-6 rounded-2xl shadow-lg border border-slate-800 dark:border-slate-800 text-white transition-all hover:shadow-xl"
+          className="spotlight-card bg-[#0F284E] dark:bg-[#071326] p-6 rounded-2xl shadow-lg border border-slate-800 dark:border-slate-800 text-white transition-all hover:shadow-xl"
         >
           <p className="text-slate-300 text-xs font-bold uppercase tracking-wider mb-2">
             {t.netProfit}
@@ -361,7 +361,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Monthly Revenue vs. Expenses (Bar/Line) */}
         <div 
           id="dash-chart-revenue-expenses-card"
-          className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm"
+          className="spotlight-card lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm"
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
             <h4 className="font-bold text-lg text-[#0F284E] dark:text-white">
@@ -387,7 +387,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Project Breakdown (Doughnut) */}
         <div 
           id="dash-chart-project-breakdown-card"
-          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex flex-col justify-between"
+          className="spotlight-card bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-sky-50 dark:bg-sky-950 text-sky-600 dark:text-sky-400">
+                <PieIcon className="w-4 h-4" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                {t.projectBreakdown}
+              </h3>
+            </div>
+          </div>
+
+          <div className="h-56 sm:h-64 w-full relative my-auto">
+            <canvas ref={categoryChartRef} id="canvas-category-breakdown" />
+          </div>
+
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400">
+            {clients.length} active client project streams
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Activity & Latest Clients Feed */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Latest Clients */}
+        <div 
+          id="dash-latest-clients-card"
+          className="spotlight-card bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm flex flex-col justify-between"
         >
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2.5">
@@ -497,7 +525,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Recent Spendings & Activity */}
         <div 
           id="dash-recent-activity-card"
-          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm flex flex-col justify-between"
+          className="spotlight-card bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm flex flex-col justify-between"
         >
           <div>
             <div className="flex items-center justify-between mb-6">

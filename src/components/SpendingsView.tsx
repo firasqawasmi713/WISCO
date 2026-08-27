@@ -62,7 +62,7 @@ export const SpendingsView: React.FC<SpendingsViewProps> = ({
   return (
     <div id="spendings-view-root" className="space-y-6 pb-12">
       {/* Top Banner */}
-      <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="spotlight-card bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
             {t.spendingsTitle}
@@ -127,12 +127,12 @@ export const SpendingsView: React.FC<SpendingsViewProps> = ({
 
       {/* Spendings Table (Desktop) / Cards (Mobile) */}
       {filteredSpendings.length === 0 ? (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-12 text-center text-slate-500 dark:text-slate-400 space-y-3">
+        <div className="spotlight-card bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-12 text-center text-slate-500 dark:text-slate-400 space-y-3">
           <FolderOpen className="w-12 h-12 mx-auto text-slate-400 dark:text-slate-600" />
           <p className="text-sm font-medium">{t.noSpendingsFound}</p>
         </div>
       ) : (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden">
+        <div className="spotlight-card bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden">
           {/* Desktop Table */}
           <div className="hidden lg:block overflow-x-auto">
             <table className="w-full text-left rtl:text-right border-collapse">

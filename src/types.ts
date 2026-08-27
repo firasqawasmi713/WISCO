@@ -115,9 +115,26 @@ export interface UserProfile {
   email: string;
   displayName: string;
   companyName?: string;
+  companyAddress?: string;
+  companyWebsite?: string;
+  companyEmail?: string;
+  companyLogo?: string;
+  defaultPaymentTerms?: string;
   createdAt: string;
   agreedToPrivacyPolicy: boolean;
   privacyPolicyAgreedAt?: string;
+}
+
+export interface RegisterPayload {
+  email: string;
+  passwordPlain: string;
+  companyName: string;
+  companyAddress: string;
+  companyWebsite: string;
+  companyEmail: string;
+  defaultPaymentTerms: string;
+  companyLogo?: string;
+  agreedToPrivacyPolicy: boolean;
 }
 
 export interface AppSettings {

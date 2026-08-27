@@ -49,14 +49,135 @@
   background: rgba(100, 116, 139, 0.8);
 }
 
+/* ==========================================================================
+   Interactive Spotlight Glowing Border Effect (WISCO Blue Theme #2563EB -> #38BDF8)
+   ========================================================================== */
+
+.spotlight-card {
+  --mouse-x: 50%;
+  --mouse-y: 50%;
+  --spotlight-size: 340px;
+  position: relative;
+  isolation: isolate;
+  border-color: transparent !important;
+  transition: box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s ease;
+}
+
+/* Glowing Border Edge Layer using Masked Gradient */
+.spotlight-card::before {
+  content: "";
+  position: absolute;
+  inset: -1.5px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: radial-gradient(
+    var(--spotlight-size) circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(56, 189, 248, 0.5),
+    rgba(37, 99, 235, 0.3) 45%,
+    rgba(203, 213, 225, 0.75) 80%,
+    rgba(226, 232, 240, 0.9) 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.7;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.25s ease;
+  z-index: 1;
+}
+
+/* Dark Mode Idle State */
+.dark .spotlight-card::before {
+  background: radial-gradient(
+    var(--spotlight-size) circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(56, 189, 248, 0.6),
+    rgba(37, 99, 235, 0.38) 45%,
+    rgba(30, 41, 59, 0.85) 80%,
+    rgba(15, 23, 42, 0.95) 100%
+  );
+  opacity: 0.75;
+}
+
+/* Interactive Hover State: Intensified Glow & Expanded Spotlight */
+.spotlight-card:hover {
+  --spotlight-size: 500px;
+  box-shadow: 
+    0 12px 30px -8px rgba(37, 99, 235, 0.16),
+    0 0 22px -3px rgba(56, 189, 248, 0.32),
+    0 0 1px 1px rgba(56, 189, 248, 0.35);
+}
+
+.spotlight-card:hover::before {
+  opacity: 1;
+  background: radial-gradient(
+    var(--spotlight-size) circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    #38bdf8 0%,
+    #2563eb 42%,
+    rgba(37, 99, 235, 0.35) 70%,
+    rgba(203, 213, 225, 0.9) 92%
+  );
+}
+
+/* Dark Mode Hover State */
+.dark .spotlight-card:hover {
+  box-shadow: 
+    0 16px 36px -8px rgba(37, 99, 235, 0.38),
+    0 0 28px -3px rgba(56, 189, 248, 0.48),
+    0 0 1px 1px rgba(56, 189, 248, 0.5);
+}
+
+.dark .spotlight-card:hover::before {
+  opacity: 1;
+  background: radial-gradient(
+    var(--spotlight-size) circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    #38bdf8 0%,
+    #2563eb 42%,
+    rgba(37, 99, 235, 0.5) 68%,
+    rgba(30, 41, 59, 0.95) 92%
+  );
+}
+
 /* Print Styles for Invoices */
 @media print {
+  @page {
+    margin: 10mm;
+    size: auto;
+  }
+  
+  html, body {
+    background: #ffffff !important;
+    color: #0F172A !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
   body * {
     visibility: hidden;
   }
+
+  #invoice-detail-modal-overlay {
+    position: static !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+
+  #invoice-detail-modal-card {
+    border: none !important;
+    box-shadow: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: transparent !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
   #invoice-printable, #invoice-printable * {
     visibility: visible;
   }
+
   #invoice-printable {
     position: absolute;
     left: 0;
@@ -64,7 +185,20 @@
     width: 100%;
     margin: 0;
     padding: 0;
-    background: white !important;
-    color: black !important;
+    background: #ffffff !important;
+    color: #0F172A !important;
+    overflow: visible !important;
+  }
+
+  #invoice-printable-container {
+    box-shadow: none !important;
+    border: none !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+
+  .print\:hidden {
+    display: none !important;
   }
 }
+

@@ -5,14 +5,13 @@ import {
   Printer, 
   Building2, 
   Calendar, 
-  CheckCircle2, 
-  Clock, 
   FileText, 
-  ShieldCheck,
   CreditCard,
   Mail,
   MapPin,
-  Globe
+  Globe,
+  Loader2,
+  Check
 } from 'lucide-react';
 import { Invoice, AppSettings, LanguageCode, CurrencyCode } from '../types';
 import { TRANSLATIONS } from '../constants/translations';
@@ -26,7 +25,6 @@ interface InvoiceDetailModalProps {
   settings: AppSettings;
   lang: LanguageCode;
   currency: CurrencyCode;
-  onUpdateStatus?: (invoiceId: string, status: Invoice['status']) => void;
 }
 
 export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
@@ -35,19 +33,25 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
   onClose,
   settings,
   lang,
-  currency,
-  onUpdateStatus
+  currency
 }) => {
   const [downloading, setDownloading] = useState(false);
+  const [downloadSuccess, setDownloadSuccess] = useState(false);
   if (!isOpen || !invoice) return null;
 
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
   const isArabic = lang === 'ar';
 
   const handleDownloadPdf = async () => {
+    if (downloading) return;
     setDownloading(true);
+    setDownloadSuccess(false);
     try {
-      await exportInvoiceToPdf('invoice-printable-container', invoice.invoiceNumber);
+      const ok = await exportInvoiceToPdf('invoice-printable-container', invoice.invoiceNumber);
+      if (ok) {
+        setDownloadSuccess(true);
+        setTimeout(() => setDownloadSuccess(false), 2500);
+      }
     } catch (err) {
       console.error("PDF generation failed:", err);
     } finally {
@@ -69,59 +73,71 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
     >
       <div 
         id="invoice-detail-modal-card"
-        className="w-full max-w-3xl max-h-[95vh] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-slate-800 dark:text-slate-100"
+        className="spotlight-card w-full max-w-3xl max-h-[95vh] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-slate-800 dark:text-slate-100"
       >
         {/* Modal Controls Header (Non-printable) */}
-        <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-800/80 print:hidden">
+        <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-800/80 print:hidden">
           <div className="flex items-center gap-3">
-            <span className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
-              {invoice.invoiceNumber}
-            </span>
-            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
-              invoice.status === 'Paid'
-                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                : invoice.status === 'Pending'
-                ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-            }`}>
-              {invoice.status}
-            </span>
+            <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/80 text-blue-600 dark:text-sky-400">
+              <FileText className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-black text-sm sm:text-base text-slate-900 dark:text-white tracking-tight">
+                {invoice.invoiceNumber}
+              </span>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                {invoice.clientName} • {invoice.projectName}
+              </p>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {onUpdateStatus && (
-              <button
-                id="btn-toggle-invoice-paid-modal"
-                onClick={() => onUpdateStatus(invoice.id, invoice.status === 'Paid' ? 'Pending' : 'Paid')}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-lg transition-colors cursor-pointer"
-              >
-                {invoice.status === 'Paid' ? t.markAsPending : t.markAsPaid}
-              </button>
-            )}
-
             <button
               id="btn-print-invoice"
+              type="button"
               onClick={handlePrint}
               title={t.printInvoice}
-              className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"
+              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
             >
               <Printer className="w-4 h-4" />
+              <span className="hidden sm:inline">{t.printInvoice}</span>
             </button>
 
             <button
               id="btn-download-pdf-invoice"
+              type="button"
               onClick={handleDownloadPdf}
               disabled={downloading}
-              className="px-4 py-1.5 bg-[#0F284E] hover:bg-[#1E3A8A] dark:bg-blue-600 dark:hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              className={`px-4 py-2 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 ${
+                downloadSuccess 
+                  ? 'bg-emerald-600 hover:bg-emerald-700' 
+                  : 'bg-[#0F284E] hover:bg-[#1E3A8A] dark:bg-blue-600 dark:hover:bg-blue-500'
+              }`}
             >
-              <Download className="w-3.5 h-3.5" />
-              <span>{downloading ? t.generatingPdf : t.downloadPdf}</span>
+              {downloading ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>{t.generatingPdf}</span>
+                </>
+              ) : downloadSuccess ? (
+                <>
+                  <Check className="w-3.5 h-3.5" />
+                  <span>{isArabic ? 'تم التحميل' : 'Downloaded!'}</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5" />
+                  <span>{t.downloadPdf}</span>
+                </>
+              )}
             </button>
 
             <button
               id="btn-close-invoice-detail-modal"
+              type="button"
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl transition-colors"
+              className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700/80 rounded-xl transition-colors cursor-pointer"
+              title={t.close}
             >
               <X className="w-5 h-5" />
             </button>
@@ -129,8 +145,8 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
         </div>
 
         {/* Printable Invoice Container */}
-        <div className="flex-1 overflow-y-auto p-6 sm:p-10 bg-white text-slate-900 font-sans" id="invoice-printable">
-          <div id="invoice-printable-container" className="p-4 sm:p-6 bg-white text-slate-900 max-w-2xl mx-auto space-y-8">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-100/60 dark:bg-slate-950/60 font-sans" id="invoice-printable">
+          <div id="invoice-printable-container" className="p-6 sm:p-10 bg-white text-slate-900 max-w-2xl mx-auto rounded-2xl shadow-sm border border-slate-200/80 space-y-7">
             
             {/* Top Brand & Agency Header */}
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 border-b-2 border-slate-900/10 pb-6">
@@ -164,15 +180,15 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
                 </div>
                 <div className="text-xs text-slate-600 space-y-0.5 mt-3">
                   <p className="flex items-center gap-1.5">
-                    <MapPin className="w-3 h-3 text-slate-400" />
+                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                     <span>{settings.companyAddress || 'King Hussein Business Park, Amman, Jordan'}</span>
                   </p>
                   <p className="flex items-center gap-1.5">
-                    <Mail className="w-3 h-3 text-slate-400" />
+                    <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                     <span>{settings.companyEmail || 'Info@whislly.com'}</span>
                   </p>
                   <p className="flex items-center gap-1.5">
-                    <Globe className="w-3 h-3 text-slate-400" />
+                    <Globe className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                     <span>{settings.companyWebsite || 'www.whislly.com'}</span>
                   </p>
                 </div>
@@ -227,10 +243,6 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
                 </div>
                 <div className="text-xs text-blue-600 font-semibold mt-0.5">
                   Category: {invoice.projectCategory}
-                </div>
-                <div className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white px-2.5 py-1 rounded-md border border-slate-200">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Status: {invoice.status}</span>
                 </div>
               </div>
             </div>
@@ -333,7 +345,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
             {/* Official Agency Signoff / Footer */}
             <div className="pt-8 border-t border-slate-100 text-center text-xs text-slate-400 space-y-1">
               <p className="font-semibold text-slate-600">
-                Thank you for choosing Whislly (Amman, Jordan).
+                Thank you for choosing {settings.companyName || 'Whislly'}.
               </p>
               <p>For questions regarding this invoice, contact {settings.companyEmail || 'Info@whislly.com'}</p>
             </div>
@@ -345,8 +357,9 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
         <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 flex justify-end gap-3 print:hidden">
           <button
             id="btn-close-invoice-modal-bottom"
+            type="button"
             onClick={onClose}
-            className="px-6 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+            className="px-6 py-2.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs rounded-xl transition-colors cursor-pointer shadow-sm"
           >
             {t.close}
           </button>
@@ -355,3 +368,4 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
     </div>
   );
 };
+

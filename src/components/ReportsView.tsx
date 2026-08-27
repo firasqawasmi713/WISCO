@@ -135,7 +135,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   return (
     <div id="reports-view-root" className="space-y-6 pb-12">
       {/* Top Banner with Toggle */}
-      <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="spotlight-card bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
             {t.reportsTitle}
@@ -187,7 +187,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {/* Analytics Breakdown KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Gross Revenue */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="spotlight-card bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
             {t.grossRevenue}
           </span>
@@ -200,7 +200,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
 
         {/* Operating Expenses */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="spotlight-card bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
             {t.totalOperatingExpenses}
           </span>
@@ -213,7 +213,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
 
         {/* Direct Spendings */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="spotlight-card bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
             {t.directSpendings}
           </span>
@@ -226,7 +226,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
 
         {/* Net Profit */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="spotlight-card bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
             {t.netEarnings}
           </span>
@@ -240,7 +240,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       </div>
 
       {/* Breakdown Report Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+      <div className="spotlight-card bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400">

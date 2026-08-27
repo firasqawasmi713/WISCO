@@ -142,18 +142,37 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </button>
 
-          {/* User Welcome Block on Desktop */}
-          <div className="hidden lg:flex items-center space-x-3 rtl:space-x-reverse pl-2 border-l border-slate-200 dark:border-slate-800">
-            <div className="text-right rtl:text-left">
-              <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Welcome back,</p>
-              <p className="text-xs font-bold text-[#0F284E] dark:text-sky-300">
-                {user?.displayName || 'Alexander Whislly'}
+          {/* User Welcome Block & Avatar Circle - Linked to Account Tab */}
+          <button
+            id="navbar-btn-user-account"
+            type="button"
+            onClick={() => onSelectTab('account')}
+            title={lang === 'ar' ? 'الانتقال إلى إعدادات الحساب' : 'Go to Account Settings'}
+            className={`flex items-center space-x-2.5 rtl:space-x-reverse pl-2 pr-1.5 py-1 rounded-2xl transition-all cursor-pointer group border ${
+              currentTab === 'account'
+                ? 'bg-blue-50/80 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800/80 shadow-sm'
+                : 'border-slate-200/60 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700'
+            }`}
+          >
+            <div className="text-right rtl:text-left hidden sm:block">
+              <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider group-hover:text-blue-600 dark:group-hover:text-sky-400 transition-colors">
+                {lang === 'ar' ? 'مرحباً،' : 'Welcome back,'}
+              </p>
+              <p className="text-xs font-bold text-[#0F284E] dark:text-sky-300 group-hover:text-blue-600 dark:group-hover:text-white transition-colors max-w-[130px] truncate">
+                {user?.displayName || (lang === 'ar' ? 'حساب المستخدم' : 'Alexander Whislly')}
               </p>
             </div>
-            <div className="w-9 h-9 bg-[#38BDF8] rounded-full border-2 border-white dark:border-slate-700 shadow-sm flex items-center justify-center text-white font-bold text-xs">
-              {user?.displayName ? user.displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'AW'}
+            <div className={`w-9 h-9 rounded-full border-2 shadow-sm flex items-center justify-center text-white font-black text-xs transition-transform group-hover:scale-105 shrink-0 ${
+              currentTab === 'account'
+                ? 'bg-blue-600 border-blue-400 ring-2 ring-blue-300 dark:ring-blue-800'
+                : 'bg-[#38BDF8] group-hover:bg-blue-600 border-white dark:border-slate-700'
+            }`}>
+              {user?.displayName 
+                ? user.displayName.split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase() 
+                : 'AW'}
             </div>
-          </div>
+          </button>
+
 
           {/* Mobile Privacy Policy Quick Button */}
           <button

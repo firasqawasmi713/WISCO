@@ -123,20 +123,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
 
         {/* User Card */}
-        <div className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/10">
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-8 h-8 rounded-lg bg-blue-500/30 border border-blue-400/40 text-blue-300 flex items-center justify-center font-bold text-xs shrink-0">
+        <div className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 transition-all">
+          <button
+            id="sidebar-user-account-btn"
+            type="button"
+            onClick={() => onSelectTab('account')}
+            className="flex items-center gap-2.5 overflow-hidden text-left rtl:text-right flex-1 cursor-pointer group"
+            title={lang === 'ar' ? 'إعدادات الحساب' : 'Account Settings'}
+          >
+            <div className="w-8 h-8 rounded-lg bg-blue-500/30 border border-blue-400/40 text-blue-300 group-hover:bg-blue-600 group-hover:text-white flex items-center justify-center font-bold text-xs shrink-0 transition-colors">
               {user?.displayName ? user.displayName.charAt(0).toUpperCase() : 'W'}
             </div>
             <div className="overflow-hidden">
-              <div className="text-xs font-bold text-white truncate">
+              <div className="text-xs font-bold text-white group-hover:text-sky-300 transition-colors truncate">
                 {user?.displayName || 'Whislly Admin'}
               </div>
               <div className="text-[10px] text-slate-400 truncate">
                 {user?.email || 'Active Session'}
               </div>
             </div>
-          </div>
+          </button>
           <button
             id="sidebar-btn-signout"
             onClick={onSignOut}

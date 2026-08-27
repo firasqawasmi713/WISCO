@@ -35,7 +35,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
     >
       <div 
         id="delete-confirm-card"
-        className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl p-6 space-y-4 text-slate-800 dark:text-slate-100"
+        className="spotlight-card w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl p-6 space-y-4 text-slate-800 dark:text-slate-100"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">

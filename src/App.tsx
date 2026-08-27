@@ -80,6 +80,24 @@ export default function App() {
     root.lang = settings.language;
   }, [settings.darkMode, settings.language]);
 
+  // 3b. Interactive Spotlight Glow Cursor Tracking
+  useEffect(() => {
+    const handlePointerMove = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      const card = target?.closest?.<HTMLElement>('.spotlight-card');
+      if (card) {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        card.style.setProperty('--mouse-x', `${x}px`);
+        card.style.setProperty('--mouse-y', `${y}px`);
+      }
+    };
+
+    window.addEventListener('mousemove', handlePointerMove, { passive: true });
+    return () => window.removeEventListener('mousemove', handlePointerMove);
+  }, []);
+
   // Sync state helper
   const reloadData = (uid?: string | null) => {
     const effectiveUid = uid !== undefined ? uid : user?.uid;
@@ -404,7 +422,6 @@ export default function App() {
         settings={settings}
         lang={settings.language}
         currency={settings.currency}
-        onUpdateStatus={handleUpdateInvoiceStatus}
       />
 
       <DeleteConfirmModal
