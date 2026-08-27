@@ -129,6 +129,7 @@ export interface AppSettings {
   companyEmail: string;
   companyPhone: string;
   companyWebsite: string;
+  companyLogo?: string;
   taxRate: number;
   defaultPaymentTerms: string;
 }

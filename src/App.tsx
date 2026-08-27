@@ -232,11 +232,6 @@ export default function App() {
     });
   };
 
-  const handleResetSampleData = () => {
-    StorageService.resetToSampleData(user?.uid);
-    reloadData(user?.uid);
-  };
-
   const t = TRANSLATIONS[settings.language] || TRANSLATIONS.en;
   const totalRevenue = clients.reduce((sum, c) => sum + (c.cost || 0), 0);
 
@@ -282,7 +277,9 @@ export default function App() {
               lang={settings.language}
               onNavigate={setCurrentTab}
               onAddClient={handleOpenAddClient}
+              onOpenAddClient={handleOpenAddClient}
               onAddSpending={handleOpenAddSpending}
+              onOpenAddSpending={handleOpenAddSpending}
             />
           )}
 
@@ -338,7 +335,6 @@ export default function App() {
               onSignOut={handleSignOut}
               onOpenPrivacyPolicy={() => setPrivacyPolicyOpen(true)}
               onDeleteAccount={handleDeleteAccount}
-              onResetSampleData={handleResetSampleData}
               onReloadAllData={reloadData}
               lang={settings.language}
             />

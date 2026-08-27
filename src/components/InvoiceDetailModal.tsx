@@ -135,10 +135,24 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
             {/* Top Brand & Agency Header */}
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 border-b-2 border-slate-900/10 pb-6">
               <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 rounded-xl bg-[#0F284E] text-white flex items-center justify-center font-black text-xl">
-                    W
+                {settings.companyLogo && (
+                  <div className="mb-3">
+                    <img 
+                      id="invoice-rendered-company-logo"
+                      src={settings.companyLogo} 
+                      alt={settings.companyName || 'Company Logo'} 
+                      className="max-h-16 max-w-[220px] object-contain rounded-lg shadow-sm border border-slate-200/80 p-1 bg-white"
+                      referrerPolicy="no-referrer"
+                    />
                   </div>
+                )}
+                
+                <div className="flex items-center gap-3 mb-2">
+                  {!settings.companyLogo && (
+                    <div className="w-10 h-10 rounded-xl bg-[#0F284E] text-white flex items-center justify-center font-black text-xl shadow-sm">
+                      {settings.companyName ? settings.companyName.charAt(0).toUpperCase() : 'W'}
+                    </div>
+                  )}
                   <div>
                     <h1 className="text-2xl font-black text-[#0F284E] tracking-tight">
                       {settings.companyName || 'Whislly Solutions Ltd.'}

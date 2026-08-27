@@ -9,172 +9,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   companyEmail: 'Info@whislly.com',
   companyPhone: '+962 6 550 1234',
   companyWebsite: 'www.whislly.com',
+  companyLogo: '',
   taxRate: 0,
   defaultPaymentTerms: 'Net 30 days from invoice issue date. Direct bank wire transfer or credit card accepted.'
 };
-
-export const INITIAL_SAMPLE_CLIENTS: ClientProject[] = [
-  {
-    id: 'cli-001',
-    name: 'Tariq Al-Mansoor',
-    companyName: 'Apex Capital Holding',
-    email: 'tariq@apexcapital.jo',
-    phone: '+962 79 123 4567',
-    address: 'Abdali Boulevard, Tower 2, Amman',
-    project: 'Enterprise Fintech Mobile App',
-    category: 'Mobile App Development',
-    cost: 14500,
-    operatingExpenses: 3200,
-    startDate: '2026-06-15',
-    dueDate: '2026-09-30',
-    status: 'In Progress',
-    notes: 'Full iOS & Android native app with dual biometric authentication and real-time portfolio tracking.',
-    createdAt: '2026-06-15T10:00:00.000Z'
-  },
-  {
-    id: 'cli-002',
-    name: 'Sarah Jenkins',
-    companyName: 'Solaria Energy Systems',
-    email: 'sarah.j@solariagroup.com',
-    phone: '+1 (415) 890-2341',
-    address: '550 Market St, San Francisco, CA 94104',
-    project: 'Global Brand & Web Platform',
-    category: 'UI/UX & Web Development',
-    cost: 9800,
-    operatingExpenses: 1400,
-    startDate: '2026-07-01',
-    dueDate: '2026-08-20',
-    status: 'Completed',
-    notes: 'Responsive web platform, 3D solar calculator, and corporate identity guidelines.',
-    createdAt: '2026-07-01T09:30:00.000Z'
-  },
-  {
-    id: 'cli-003',
-    name: 'Omar Khader',
-    companyName: 'Petra Cloud Logistics',
-    email: 'o.khader@petralog.me',
-    phone: '+962 77 987 6543',
-    address: '7th Circle, Business District, Amman',
-    project: 'Supply Chain Analytics Engine',
-    category: 'Cloud Consulting',
-    cost: 18200,
-    operatingExpenses: 4100,
-    startDate: '2026-05-10',
-    dueDate: '2026-08-15',
-    status: 'Completed',
-    notes: 'Real-time telemetry pipelines, container deployment on GCP, and automated dispatch dashboard.',
-    createdAt: '2026-05-10T14:15:00.000Z'
-  },
-  {
-    id: 'cli-004',
-    name: 'Lina Al-Husseini',
-    companyName: 'Lumina Digital Marketing',
-    email: 'lina@luminamedia.com',
-    phone: '+971 4 330 9988',
-    address: 'Dubai Media City, Building 9, UAE',
-    project: 'E-Commerce Marketplace Redesign',
-    category: 'UI/UX Design',
-    cost: 7600,
-    operatingExpenses: 1100,
-    startDate: '2026-07-20',
-    dueDate: '2026-10-15',
-    status: 'In Progress',
-    notes: 'High conversion multi-vendor marketplace design system with RTL Arabic adaptation.',
-    createdAt: '2026-07-20T11:45:00.000Z'
-  },
-  {
-    id: 'cli-005',
-    name: 'David Vance',
-    companyName: 'Beacon MedTech UK',
-    email: 'd.vance@beaconmed.co.uk',
-    phone: '+44 20 7946 0912',
-    address: '14 Harley Street, London W1G 9PQ',
-    project: 'Patient Telehealth Portal',
-    category: 'Custom Software',
-    cost: 22000,
-    operatingExpenses: 5500,
-    startDate: '2026-08-01',
-    dueDate: '2026-11-30',
-    status: 'In Progress',
-    notes: 'HIPAA and GDPR compliant real-time video consult portal with encrypted prescription routing.',
-    createdAt: '2026-08-01T08:00:00.000Z'
-  }
-];
-
-export const INITIAL_SAMPLE_SPENDINGS: Spending[] = [
-  {
-    id: 'sp-001',
-    item: 'AWS Cloud Infrastructure & GPU Clusters',
-    purpose: 'Model training servers and multi-region database hosting',
-    amount: 1250,
-    resellerName: 'Amazon Web Services Inc.',
-    category: 'Hosting & Cloud',
-    date: '2026-08-05',
-    paymentMethod: 'Credit Card',
-    receiptNumber: 'AWS-2026-89104',
-    createdAt: '2026-08-05T12:00:00.000Z'
-  },
-  {
-    id: 'sp-002',
-    item: 'Figma Enterprise Organization License',
-    purpose: 'Design collaboration seats for product and client teams',
-    amount: 450,
-    resellerName: 'Figma Inc.',
-    category: 'Software & Subscriptions',
-    date: '2026-08-01',
-    paymentMethod: 'Credit Card',
-    receiptNumber: 'FIG-882194',
-    createdAt: '2026-08-01T09:00:00.000Z'
-  },
-  {
-    id: 'sp-003',
-    item: 'High-Performance Apple M3 Max Workstations',
-    purpose: 'Senior engineering hardware upgrade',
-    amount: 3800,
-    resellerName: 'Apple Store ME & Tech Dist',
-    category: 'Hardware & Equipment',
-    date: '2026-07-18',
-    paymentMethod: 'Bank Transfer',
-    receiptNumber: 'APP-990142',
-    createdAt: '2026-07-18T15:30:00.000Z'
-  },
-  {
-    id: 'sp-004',
-    item: 'Fiber Optic Dedicated Line & Mesh Routers',
-    purpose: 'High-speed gigabit office connectivity',
-    amount: 320,
-    resellerName: 'Zain Telecommunications',
-    category: 'Utilities & Internet',
-    date: '2026-08-10',
-    paymentMethod: 'Bank Transfer',
-    receiptNumber: 'ZN-671203',
-    createdAt: '2026-08-10T14:20:00.000Z'
-  },
-  {
-    id: 'sp-005',
-    item: 'Specialized Cybersecurity Audit & Pentest',
-    purpose: 'Third-party compliance audit for fintech project',
-    amount: 2400,
-    resellerName: 'CyberShield Security Labs',
-    category: 'Contractors & Payroll',
-    date: '2026-07-28',
-    paymentMethod: 'Bank Transfer',
-    receiptNumber: 'CSL-2026-44',
-    createdAt: '2026-07-28T16:00:00.000Z'
-  },
-  {
-    id: 'sp-006',
-    item: 'Google Workspace Business Plus',
-    purpose: 'Corporate emails, cloud storage, and video conferencing',
-    amount: 180,
-    resellerName: 'Google Cloud EMEA',
-    category: 'Software & Subscriptions',
-    date: '2026-08-02',
-    paymentMethod: 'Credit Card',
-    receiptNumber: 'G-SUITE-41029',
-    createdAt: '2026-08-02T10:00:00.000Z'
-  }
-];
 
 export function generateInvoiceForClient(client: ClientProject, invoiceNumSequence: number = 1): Invoice {
   const paddedSeq = String(invoiceNumSequence).padStart(3, '0');
@@ -227,10 +65,6 @@ export function generateInvoiceForClient(client: ClientProject, invoiceNumSequen
     paymentTerms: 'Payment due within 30 days of invoice date.',
     createdAt: client.createdAt || new Date().toISOString()
   };
-}
-
-export function createInitialSampleInvoices(clients: ClientProject[]): Invoice[] {
-  return clients.map((c, idx) => generateInvoiceForClient(c, idx + 101));
 }
 
 interface RegisteredAccount {
@@ -657,25 +491,6 @@ export const StorageService = {
   // Sign out helper
   signOut(): void {
     this.setUser(null);
-  },
-
-  // Reset sample dataset ONLY when user explicitly requests benchmark loader
-  resetAllDataToSample(explicitUid?: string | null): void {
-    const uid = explicitUid || this.getCurrentUid();
-    if (!uid) return;
-    this.saveClients(INITIAL_SAMPLE_CLIENTS, uid);
-    const sampleInvoices = createInitialSampleInvoices(INITIAL_SAMPLE_CLIENTS);
-    this.saveInvoices(sampleInvoices, uid);
-    this.saveSpendings(INITIAL_SAMPLE_SPENDINGS, uid);
-    this.logActivity({
-      type: 'client_created',
-      title: 'Sample Data Loaded',
-      description: 'Loaded benchmark financial datasets for testing.'
-    }, uid);
-  },
-
-  resetToSampleData(explicitUid?: string | null): void {
-    this.resetAllDataToSample(explicitUid);
   },
 
   // Complete data deletion for current user

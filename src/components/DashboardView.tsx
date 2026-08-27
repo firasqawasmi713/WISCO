@@ -271,7 +271,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="relative z-10 flex flex-wrap items-center gap-3">
           <button
             id="dash-btn-add-client"
-            onClick={onOpenAddClient}
+            onClick={handleAddClientAction}
             className="px-4 py-2.5 bg-white text-[#0F284E] hover:bg-slate-100 font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
           >
             <PlusCircle className="w-4 h-4 text-blue-600" />
@@ -279,7 +279,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </button>
           <button
             id="dash-btn-add-spending"
-            onClick={onOpenAddSpending}
+            onClick={handleAddSpendingAction}
             className="px-4 py-2.5 bg-sky-500/20 hover:bg-sky-500/30 text-white font-bold text-xs sm:text-sm rounded-xl border border-white/20 backdrop-blur-sm transition-all flex items-center gap-2 cursor-pointer"
           >
             <Wallet className="w-4 h-4 text-sky-300" />
