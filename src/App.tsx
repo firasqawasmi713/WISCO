@@ -14,6 +14,7 @@ import {
   InvoiceStatus 
 } from './types';
 import { StorageService } from './services/storage';
+import { supabase } from './services/supabase';
 import { TRANSLATIONS } from './constants/translations';
 
 // Components
@@ -96,6 +97,38 @@ export default function App() {
 
     window.addEventListener('mousemove', handlePointerMove, { passive: true });
     return () => window.removeEventListener('mousemove', handlePointerMove);
+  }, []);
+
+  // 3c. Supabase Session Lifecycle & Real-Time Sync
+  useEffect(() => {
+    // Check active session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        const uid = session.user.id;
+        StorageService.syncFromSupabase(uid).then((res) => {
+          setClients(res.clients);
+          setInvoices(res.invoices);
+          setSpendings(res.spendings);
+          setSettings(res.settings);
+        });
+      }
+    });
+
+    // Listen to Supabase auth events
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const uid = session.user.id;
+        const res = await StorageService.syncFromSupabase(uid);
+        setClients(res.clients);
+        setInvoices(res.invoices);
+        setSpendings(res.spendings);
+        setSettings(res.settings);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Sync state helper

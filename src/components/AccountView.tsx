@@ -589,14 +589,14 @@ export const AccountView: React.FC<AccountViewProps> = ({
                 {t.dataStorageMode}
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                {t.storageModeLocal}
+                {t.storageModeSupabase}
               </p>
             </div>
           </div>
 
           <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Local Vault active with instant zero-latency caching & Firebase SDK readiness.</span>
+            <span>{isArabic ? 'سحابة Supabase متصلة ومفعّلة بعزل كامل لبيانات المستخدم وتسريع محلي فوري.' : 'Supabase Cloud Database & Auth active with user-isolated RLS security and zero-latency local caching.'}</span>
           </div>
         </div>
       </div>

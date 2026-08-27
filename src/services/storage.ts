@@ -1,4 +1,5 @@
-import { ClientProject, Invoice, Spending, AppSettings, UserProfile, ActivityLog, RegisterPayload } from '../types';
+import { ClientProject, Invoice, Spending, AppSettings, UserProfile, ActivityLog, RegisterPayload, InvoiceStatus } from '../types';
+import { SupabaseService } from './supabase';
 
 export const DEFAULT_SETTINGS: AppSettings = {
   currency: 'USD',
@@ -71,17 +72,12 @@ export function generateInvoiceForClient(
   };
 }
 
-interface RegisteredAccount {
-  user: UserProfile;
-  passwordHash: string; // Stored securely in client storage
-}
-
 const GLOBAL_KEYS = {
   CURRENT_USER: 'wisco_current_user_session',
   REGISTERED_ACCOUNTS: 'wisco_registered_accounts'
 };
 
-// Isolated Storage Service tied to authenticated user UID
+// Supabase-backed Storage Service with instantaneous local caching and strict user isolation
 export const StorageService = {
   // Returns currently active user session or null
   getUser(): UserProfile | null {
@@ -108,8 +104,8 @@ export const StorageService = {
     }
   },
 
-  // Helper for generating UID-scoped storage keys (e.g. wisco_data_${user.uid}_clients or wisco_clients_${user.uid})
-  getKey(dataType: 'clients' | 'invoices' | 'spendings' | 'settings' | 'activities', explicitUid?: string | null): string {
+  // Helper for generating UID-scoped storage keys
+  getKey(dataType: 'clients' | 'invoices' | 'spendings' | 'settings' | 'activities' | 'profile', explicitUid?: string | null): string {
     const uid = explicitUid || this.getCurrentUid();
     if (!uid) {
       return `wisco_guest_${dataType}`;
@@ -117,140 +113,117 @@ export const StorageService = {
     return `wisco_${dataType}_${uid}`;
   },
 
-  // Account Registration with Mandatory Agency Profile Onboarding
-  registerUser(
-    payloadOrEmail: string | RegisterPayload,
-    passwordPlain?: string,
-    companyName: string = '',
-    agreedToPrivacyPolicy: boolean = true
-  ): { success: boolean; user?: UserProfile; error?: string } {
+  // Account Registration via Supabase Auth + Supabase profiles table
+  async registerUser(
+    payload: RegisterPayload
+  ): Promise<{ success: boolean; user?: UserProfile; error?: string }> {
     try {
-      let payload: RegisterPayload;
-      if (typeof payloadOrEmail === 'object') {
-        payload = payloadOrEmail;
-      } else {
-        payload = {
-          email: payloadOrEmail,
-          passwordPlain: passwordPlain || '',
-          companyName: companyName || '',
-          companyAddress: '',
-          companyWebsite: '',
-          companyEmail: payloadOrEmail,
-          defaultPaymentTerms: DEFAULT_SETTINGS.defaultPaymentTerms,
-          companyLogo: '',
-          agreedToPrivacyPolicy
-        };
+      const res = await SupabaseService.signUp(payload);
+      if (!res.success || !res.user) {
+        return { success: false, error: res.error || 'Registration failed.' };
       }
 
-      const normalizedEmail = payload.email.trim().toLowerCase();
-      const accountsRaw = localStorage.getItem(GLOBAL_KEYS.REGISTERED_ACCOUNTS);
-      const accounts: Record<string, RegisteredAccount> = accountsRaw ? JSON.parse(accountsRaw) : {};
+      const userProfile = res.user;
+      const uid = userProfile.uid;
 
-      if (accounts[normalizedEmail]) {
-        return { success: false, error: 'An account with this email address already exists. Please sign in.' };
-      }
-
-      // Generate a unique identifier
-      const uid = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      const cleanCompany = (payload.companyName || '').trim() || 'Whislly Partner';
-      const cleanAddress = (payload.companyAddress || '').trim() || 'Amman, Jordan';
-      const cleanWebsite = (payload.companyWebsite || '').trim() || 'www.company.com';
-      const cleanContactEmail = (payload.companyEmail || '').trim() || normalizedEmail;
-      const cleanTerms = (payload.defaultPaymentTerms || '').trim() || DEFAULT_SETTINGS.defaultPaymentTerms;
-      const cleanLogo = payload.companyLogo || '';
-
-      const userProfile: UserProfile = {
-        uid,
-        email: normalizedEmail,
-        displayName: cleanCompany,
-        companyName: cleanCompany,
-        companyAddress: cleanAddress,
-        companyWebsite: cleanWebsite,
-        companyEmail: cleanContactEmail,
-        companyLogo: cleanLogo,
-        defaultPaymentTerms: cleanTerms,
-        createdAt: new Date().toISOString(),
-        agreedToPrivacyPolicy: payload.agreedToPrivacyPolicy,
-        privacyPolicyAgreedAt: new Date().toISOString()
-      };
-
-      // Save to global accounts registry
-      accounts[normalizedEmail] = {
-        user: userProfile,
-        passwordHash: btoa(payload.passwordPlain) // Standard base64 obfuscation for local credential state
-      };
-      localStorage.setItem(GLOBAL_KEYS.REGISTERED_ACCOUNTS, JSON.stringify(accounts));
-
-      // Persist profile into dedicated user record (wisco_profile_${uid})
-      localStorage.setItem(`wisco_profile_${uid}`, JSON.stringify(userProfile));
-
-      // Initialize isolated settings for new user with onboarding agency profile
+      // Initialize local settings & user record
       const initialSettings: AppSettings = {
         ...DEFAULT_SETTINGS,
-        companyName: cleanCompany,
-        companyAddress: cleanAddress,
-        companyWebsite: cleanWebsite,
-        companyEmail: cleanContactEmail,
-        companyLogo: cleanLogo,
-        defaultPaymentTerms: cleanTerms
+        companyName: payload.companyName || 'Whislly Partner',
+        companyAddress: payload.companyAddress || 'Amman, Jordan',
+        companyWebsite: payload.companyWebsite || 'www.company.com',
+        companyEmail: payload.companyEmail || payload.email,
+        companyLogo: payload.companyLogo || '',
+        defaultPaymentTerms: payload.defaultPaymentTerms || DEFAULT_SETTINGS.defaultPaymentTerms
       };
 
-      // CRITICAL: Initialize completely empty datasets for new user (NO hardcoded demo arrays)
+      localStorage.setItem(this.getKey('profile', uid), JSON.stringify(userProfile));
+      localStorage.setItem(this.getKey('settings', uid), JSON.stringify(initialSettings));
       localStorage.setItem(this.getKey('clients', uid), JSON.stringify([]));
       localStorage.setItem(this.getKey('invoices', uid), JSON.stringify([]));
       localStorage.setItem(this.getKey('spendings', uid), JSON.stringify([]));
       localStorage.setItem(this.getKey('activities', uid), JSON.stringify([]));
-      localStorage.setItem(this.getKey('settings', uid), JSON.stringify(initialSettings));
 
       // Set active session
       this.setUser(userProfile);
 
       return { success: true, user: userProfile };
-    } catch (e) {
+    } catch (e: any) {
       console.error('Registration error:', e);
-      return { success: false, error: 'Failed to create account. Please try again.' };
+      return { success: false, error: e.message || 'Failed to create account. Please try again.' };
     }
   },
 
-  // Account Login (Restores isolated dataset by UID)
-  loginUser(
+  // Account Login via Supabase Auth + Sync from Supabase tables
+  async loginUser(
     email: string,
     passwordPlain: string
-  ): { success: boolean; user?: UserProfile; error?: string } {
+  ): Promise<{ success: boolean; user?: UserProfile; error?: string }> {
     try {
-      const normalizedEmail = email.trim().toLowerCase();
-      const accountsRaw = localStorage.getItem(GLOBAL_KEYS.REGISTERED_ACCOUNTS);
-      const accounts: Record<string, RegisteredAccount> = accountsRaw ? JSON.parse(accountsRaw) : {};
-
-      const account = accounts[normalizedEmail];
-      if (!account) {
-        return { success: false, error: 'No account found with this email. Please sign up first.' };
+      const res = await SupabaseService.signIn(email, passwordPlain);
+      if (!res.success || !res.user) {
+        return { success: false, error: res.error || 'Invalid email or password.' };
       }
 
-      if (account.passwordHash !== btoa(passwordPlain)) {
-        return { success: false, error: 'Incorrect password. Please verify and try again.' };
-      }
+      const userProfile = res.user;
+      const uid = userProfile.uid;
 
-      // Check if user profile is in wisco_profile_${uid}
-      let userObj = account.user;
-      try {
-        const storedProfile = localStorage.getItem(`wisco_profile_${userObj.uid}`);
-        if (storedProfile) {
-          userObj = { ...userObj, ...JSON.parse(storedProfile) };
-        }
-      } catch {
-        // ignore
-      }
+      this.setUser(userProfile);
+      localStorage.setItem(this.getKey('profile', uid), JSON.stringify(userProfile));
 
-      this.setUser(userObj);
-      return { success: true, user: userObj };
-    } catch (e) {
+      // Synchronize database records from Supabase tables for this user
+      await this.syncFromSupabase(uid);
+
+      return { success: true, user: userProfile };
+    } catch (e: any) {
       console.error('Login error:', e);
-      return { success: false, error: 'Failed to authenticate. Please try again.' };
+      return { success: false, error: e.message || 'Failed to authenticate. Please try again.' };
     }
   },
 
-  // Settings
+  // Synchronize all data from Supabase tables (filtered strictly by user_id)
+  async syncFromSupabase(userId: string): Promise<{
+    clients: ClientProject[];
+    invoices: Invoice[];
+    spendings: Spending[];
+    settings: AppSettings;
+  }> {
+    try {
+      const [clientsData, invoicesData, spendingsData, profileData] = await Promise.all([
+        SupabaseService.fetchClients(userId),
+        SupabaseService.fetchInvoices(userId),
+        SupabaseService.fetchSpendings(userId),
+        SupabaseService.fetchProfileAndSettings(userId)
+      ]);
+
+      // Cache locally
+      this.saveClients(clientsData, userId);
+      this.saveInvoices(invoicesData, userId);
+      this.saveSpendings(spendingsData, userId);
+
+      if (profileData.settings) {
+        this.saveSettings(profileData.settings, userId);
+      }
+
+      const currentSettings = this.getSettings(userId);
+      return {
+        clients: clientsData,
+        invoices: invoicesData,
+        spendings: spendingsData,
+        settings: currentSettings
+      };
+    } catch (e) {
+      console.warn('Supabase sync error (using local cache):', e);
+      return {
+        clients: this.getClients(userId),
+        invoices: this.getInvoices(userId),
+        spendings: this.getSpendings(userId),
+        settings: this.getSettings(userId)
+      };
+    }
+  },
+
+  // Settings & Profile
   getSettings(explicitUid?: string | null): AppSettings {
     try {
       const key = this.getKey('settings', explicitUid);
@@ -267,36 +240,46 @@ export const StorageService = {
   saveSettings(settings: Partial<AppSettings>, explicitUid?: string | null): AppSettings {
     const current = this.getSettings(explicitUid);
     const updated = { ...current, ...settings };
-    const key = this.getKey('settings', explicitUid);
+    const uid = explicitUid || this.getCurrentUid();
+    const key = this.getKey('settings', uid);
     localStorage.setItem(key, JSON.stringify(updated));
 
-    // Sync user profile record if companyLogo or defaultPaymentTerms updated
-    const uid = explicitUid || this.getCurrentUid();
     if (uid) {
       try {
-        const profileKey = `wisco_profile_${uid}`;
+        const profileKey = this.getKey('profile', uid);
         const profileRaw = localStorage.getItem(profileKey);
-        if (profileRaw) {
-          const profile: UserProfile = JSON.parse(profileRaw);
-          if (settings.companyLogo !== undefined) profile.companyLogo = settings.companyLogo;
-          if (settings.defaultPaymentTerms !== undefined) profile.defaultPaymentTerms = settings.defaultPaymentTerms;
-          localStorage.setItem(profileKey, JSON.stringify(profile));
-        }
+        let profileObj: UserProfile = profileRaw ? JSON.parse(profileRaw) : {
+          uid,
+          email: updated.companyEmail || '',
+          displayName: updated.companyName || 'Agency Partner',
+          createdAt: new Date().toISOString(),
+          agreedToPrivacyPolicy: true
+        };
+
+        if (settings.companyLogo !== undefined) profileObj.companyLogo = settings.companyLogo;
+        if (settings.defaultPaymentTerms !== undefined) profileObj.defaultPaymentTerms = settings.defaultPaymentTerms;
+        localStorage.setItem(profileKey, JSON.stringify(profileObj));
+
         const currentUser = this.getUser();
         if (currentUser && currentUser.uid === uid) {
           if (settings.companyLogo !== undefined) currentUser.companyLogo = settings.companyLogo;
           if (settings.defaultPaymentTerms !== undefined) currentUser.defaultPaymentTerms = settings.defaultPaymentTerms;
           this.setUser(currentUser);
         }
-      } catch {
-        // ignore
+
+        // Asynchronously sync to Supabase profiles table
+        SupabaseService.updateProfileAndSettings(uid, profileObj, updated).catch(err => {
+          console.warn('Background Supabase profile update notice:', err);
+        });
+      } catch (err) {
+        console.warn('Profile sync notice:', err);
       }
     }
 
     return updated;
   },
 
-  // Clients (Strictly UID-isolated, returns [] for empty/new user)
+  // Clients (Strictly UID-isolated)
   getClients(explicitUid?: string | null): ClientProject[] {
     const uid = explicitUid || this.getCurrentUid();
     if (!uid) return [];
@@ -363,8 +346,9 @@ export const StorageService = {
     const invoiceNumSeq = invoices.length + 101;
     const updatedInvoice = generateInvoiceForClient(client, invoiceNumSeq, userSettings.defaultPaymentTerms);
 
+    let finalInvoice: Invoice;
     if (existingInvIdx !== -1) {
-      invoices[existingInvIdx] = {
+      finalInvoice = {
         ...invoices[existingInvIdx],
         clientName: client.name,
         companyName: client.companyName,
@@ -387,10 +371,22 @@ export const StorageService = {
           }
         ]
       };
+      invoices[existingInvIdx] = finalInvoice;
     } else {
-      invoices.unshift(updatedInvoice);
+      finalInvoice = updatedInvoice;
+      invoices.unshift(finalInvoice);
     }
     this.saveInvoices(invoices, uid);
+
+    // Asynchronously push to Supabase tables
+    if (uid) {
+      SupabaseService.upsertClient(client, uid).catch(err => {
+        console.warn('Background Supabase upsertClient notice:', err);
+      });
+      SupabaseService.upsertInvoice(finalInvoice, uid).catch(err => {
+        console.warn('Background Supabase upsertInvoice notice:', err);
+      });
+    }
 
     this.logActivity({
       type: existingId ? 'client_created' : 'client_created',
@@ -410,6 +406,13 @@ export const StorageService = {
     const invoices = this.getInvoices(uid).filter(i => i.clientId !== clientId);
     this.saveInvoices(invoices, uid);
 
+    // Asynchronously delete from Supabase tables
+    if (uid) {
+      SupabaseService.deleteClient(clientId, uid).catch(err => {
+        console.warn('Background Supabase deleteClient notice:', err);
+      });
+    }
+
     this.logActivity({
       type: 'client_created',
       title: 'Client Record Deleted',
@@ -417,7 +420,7 @@ export const StorageService = {
     }, uid);
   },
 
-  // Invoices (Strictly UID-isolated, returns [] for empty/new user)
+  // Invoices (Strictly UID-isolated)
   getInvoices(explicitUid?: string | null): Invoice[] {
     const uid = explicitUid || this.getCurrentUid();
     if (!uid) return [];
@@ -441,13 +444,19 @@ export const StorageService = {
     localStorage.setItem(key, JSON.stringify(invoices));
   },
 
-  updateInvoiceStatus(invoiceId: string, status: Invoice['status'], explicitUid?: string | null): void {
+  updateInvoiceStatus(invoiceId: string, status: InvoiceStatus, explicitUid?: string | null): void {
     const uid = explicitUid || this.getCurrentUid();
     const invoices = this.getInvoices(uid);
     const idx = invoices.findIndex(i => i.id === invoiceId);
     if (idx !== -1) {
       invoices[idx].status = status;
       this.saveInvoices(invoices, uid);
+
+      if (uid) {
+        SupabaseService.updateInvoiceStatus(invoiceId, status, uid).catch(err => {
+          console.warn('Background Supabase updateInvoiceStatus notice:', err);
+        });
+      }
 
       this.logActivity({
         type: status === 'Paid' ? 'invoice_paid' : 'invoice_generated',
@@ -458,7 +467,7 @@ export const StorageService = {
     }
   },
 
-  // Spendings (Strictly UID-isolated, returns [] for empty/new user)
+  // Spendings (Strictly UID-isolated)
   getSpendings(explicitUid?: string | null): Spending[] {
     const uid = explicitUid || this.getCurrentUid();
     if (!uid) return [];
@@ -518,6 +527,12 @@ export const StorageService = {
 
     this.saveSpendings(spendings, uid);
 
+    if (uid) {
+      SupabaseService.upsertSpending(spending, uid).catch(err => {
+        console.warn('Background Supabase upsertSpending notice:', err);
+      });
+    }
+
     this.logActivity({
       type: 'spending_added',
       title: 'Spending Expense Logged',
@@ -532,6 +547,12 @@ export const StorageService = {
     const uid = explicitUid || this.getCurrentUid();
     const spendings = this.getSpendings(uid).filter(s => s.id !== spendingId);
     this.saveSpendings(spendings, uid);
+
+    if (uid) {
+      SupabaseService.deleteSpending(spendingId, uid).catch(err => {
+        console.warn('Background Supabase deleteSpending notice:', err);
+      });
+    }
 
     this.logActivity({
       type: 'spending_added',
@@ -572,37 +593,35 @@ export const StorageService = {
   },
 
   // Sign out helper
-  signOut(): void {
+  async signOut(): Promise<void> {
+    try {
+      await SupabaseService.signOut();
+    } catch {
+      // ignore
+    }
     this.setUser(null);
   },
 
-  // Complete data deletion for current user
-  deleteAccountAndWipeAllData(explicitUid?: string | null): void {
+  // Complete data deletion for user (Section 6 Privacy & Account Deletion)
+  async deleteAccountAndWipeAllData(explicitUid?: string | null): Promise<void> {
     const uid = explicitUid || this.getCurrentUid();
-    const user = this.getUser();
-
+    
     if (uid) {
+      try {
+        await SupabaseService.wipeAllUserData(uid);
+      } catch (err) {
+        console.warn('Supabase wipe error:', err);
+      }
+
       localStorage.removeItem(this.getKey('clients', uid));
       localStorage.removeItem(this.getKey('invoices', uid));
       localStorage.removeItem(this.getKey('spendings', uid));
       localStorage.removeItem(this.getKey('settings', uid));
       localStorage.removeItem(this.getKey('activities', uid));
+      localStorage.removeItem(this.getKey('profile', uid));
     }
 
-    if (user?.email) {
-      try {
-        const accountsRaw = localStorage.getItem(GLOBAL_KEYS.REGISTERED_ACCOUNTS);
-        if (accountsRaw) {
-          const accounts = JSON.parse(accountsRaw);
-          delete accounts[user.email.toLowerCase()];
-          localStorage.setItem(GLOBAL_KEYS.REGISTERED_ACCOUNTS, JSON.stringify(accounts));
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    this.setUser(null);
+    await this.signOut();
   },
 
   clearAllData(explicitUid?: string | null): void {
@@ -617,7 +636,8 @@ export const StorageService = {
   exportFullBackup(explicitUid?: string | null): string {
     const uid = explicitUid || this.getCurrentUid();
     const backup = {
-      version: '2.0.0',
+      version: '3.0.0',
+      backend: 'Supabase PostgreSQL',
       uid,
       exportedAt: new Date().toISOString(),
       user: this.getUser(),
@@ -635,10 +655,27 @@ export const StorageService = {
     if (!uid) return false;
     try {
       const parsed = JSON.parse(jsonString);
-      if (Array.isArray(parsed.clients)) this.saveClients(parsed.clients, uid);
-      if (Array.isArray(parsed.invoices)) this.saveInvoices(parsed.invoices, uid);
-      if (Array.isArray(parsed.spendings)) this.saveSpendings(parsed.spendings, uid);
-      if (parsed.settings) this.saveSettings(parsed.settings, uid);
+      if (Array.isArray(parsed.clients)) {
+        this.saveClients(parsed.clients, uid);
+        parsed.clients.forEach((c: ClientProject) => {
+          SupabaseService.upsertClient(c, uid).catch(console.warn);
+        });
+      }
+      if (Array.isArray(parsed.invoices)) {
+        this.saveInvoices(parsed.invoices, uid);
+        parsed.invoices.forEach((inv: Invoice) => {
+          SupabaseService.upsertInvoice(inv, uid).catch(console.warn);
+        });
+      }
+      if (Array.isArray(parsed.spendings)) {
+        this.saveSpendings(parsed.spendings, uid);
+        parsed.spendings.forEach((sp: Spending) => {
+          SupabaseService.upsertSpending(sp, uid).catch(console.warn);
+        });
+      }
+      if (parsed.settings) {
+        this.saveSettings(parsed.settings, uid);
+      }
       if (Array.isArray(parsed.activities)) {
         const key = this.getKey('activities', uid);
         localStorage.setItem(key, JSON.stringify(parsed.activities));

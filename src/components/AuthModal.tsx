@@ -117,7 +117,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -135,15 +135,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       }
 
       setLoading(true);
-      setTimeout(() => {
-        const res = StorageService.loginUser(email, password);
+      try {
+        const res = await StorageService.loginUser(email, password);
         setLoading(false);
         if (!res.success || !res.user) {
           setError(res.error || (isArabic ? 'بيانات الدخول غير صحيحة.' : 'Invalid credentials.'));
           return;
         }
         onSuccess(res.user);
-      }, 300);
+      } catch (err: any) {
+        setLoading(false);
+        setError(err.message || (isArabic ? 'حدث خطأ أثناء تسجيل الدخول.' : 'Authentication error.'));
+      }
     } else {
       // SIGN UP VALIDATION
       if (!email || !emailRegex.test(email.trim())) {
@@ -192,7 +195,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       }
 
       setLoading(true);
-      setTimeout(() => {
+      try {
         const payload: RegisterPayload = {
           email: email.trim(),
           passwordPlain: password,
@@ -205,14 +208,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           agreedToPrivacyPolicy: agreedPolicy
         };
 
-        const res = StorageService.registerUser(payload);
+        const res = await StorageService.registerUser(payload);
         setLoading(false);
         if (!res.success || !res.user) {
           setError(res.error || (isArabic ? 'حدث خطأ أثناء إنشاء الحساب.' : 'Failed to create account.'));
           return;
         }
         onSuccess(res.user);
-      }, 350);
+      } catch (err: any) {
+        setLoading(false);
+        setError(err.message || (isArabic ? 'حدث خطأ أثناء إنشاء الحساب.' : 'Failed to create account.'));
+      }
     }
   };
 
