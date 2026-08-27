@@ -1,0 +1,535 @@
+import React, { useState, useRef } from 'react';
+import { 
+  Settings, 
+  Coins, 
+  Globe, 
+  Moon, 
+  Sun, 
+  ShieldCheck, 
+  Database, 
+  Trash2, 
+  LogOut, 
+  RefreshCw, 
+  Download, 
+  Upload, 
+  Building2, 
+  Mail, 
+  Phone, 
+  MapPin, 
+  Check, 
+  AlertCircle,
+  FileCheck
+} from 'lucide-react';
+import { AppSettings, CurrencyCode, LanguageCode, UserProfile } from '../types';
+import { TRANSLATIONS } from '../constants/translations';
+import { CURRENCIES } from '../constants/currencies';
+import { StorageService } from '../services/storage';
+
+interface AccountViewProps {
+  user: UserProfile | null;
+  settings: AppSettings;
+  onUpdateSettings: (newSettings: Partial<AppSettings>) => void;
+  onSignOut: () => void;
+  onOpenPrivacyPolicy: () => void;
+  onDeleteAccount: () => void;
+  onResetSampleData: () => void;
+  onReloadAllData: () => void;
+  lang: LanguageCode;
+}
+
+export const AccountView: React.FC<AccountViewProps> = ({
+  user,
+  settings,
+  onUpdateSettings,
+  onSignOut,
+  onOpenPrivacyPolicy,
+  onDeleteAccount,
+  onResetSampleData,
+  onReloadAllData,
+  lang
+}) => {
+  const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
+  const isArabic = lang === 'ar';
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [companyName, setCompanyName] = useState(settings.companyName);
+  const [companyAddress, setCompanyAddress] = useState(settings.companyAddress);
+  const [companyEmail, setCompanyEmail] = useState(settings.companyEmail);
+  const [companyPhone, setCompanyPhone] = useState(settings.companyPhone);
+  const [companyWebsite, setCompanyWebsite] = useState(settings.companyWebsite);
+  const [taxRate, setTaxRate] = useState(settings.taxRate);
+  const [defaultPaymentTerms, setDefaultPaymentTerms] = useState(settings.defaultPaymentTerms);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [importStatus, setImportStatus] = useState<string | null>(null);
+
+  const handleSaveAgencyProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    onUpdateSettings({
+      companyName,
+      companyAddress,
+      companyEmail,
+      companyPhone,
+      companyWebsite,
+      taxRate: Number(taxRate) || 0,
+      defaultPaymentTerms
+    });
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000);
+  };
+
+  const handleExportBackup = () => {
+    const jsonStr = StorageService.exportFullBackup();
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `WISCO_Backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      const success = StorageService.importFullBackup(content);
+      if (success) {
+        setImportStatus('Backup restored successfully!');
+        onReloadAllData();
+      } else {
+        setImportStatus('Invalid backup file format.');
+      }
+      setTimeout(() => setImportStatus(null), 4000);
+    };
+    reader.readAsText(file);
+  };
+
+  return (
+    <div id="account-view-root" className="space-y-6 pb-12 max-w-4xl mx-auto">
+      {/* Top Banner */}
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
+            {t.accountTitle}
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            {t.accountSubtitle}
+          </p>
+        </div>
+
+        <button
+          id="btn-account-privacy-policy-top"
+          onClick={onOpenPrivacyPolicy}
+          className="px-4 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-700 dark:text-sky-300 border border-blue-200 dark:border-blue-900/50 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0"
+        >
+          <ShieldCheck className="w-4 h-4 text-emerald-500" />
+          <span>{t.readPrivacyPolicy} (Whislly)</span>
+        </button>
+      </div>
+
+      {/* User Profile Card */}
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-400 mb-4">
+          {t.userProfile}
+        </h3>
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-sky-400 text-white flex items-center justify-center font-black text-lg shadow-md">
+              {user?.displayName ? user.displayName.charAt(0).toUpperCase() : 'W'}
+            </div>
+            <div>
+              <div className="text-base font-bold text-slate-900 dark:text-white">
+                {user?.displayName || 'Finance Director'}
+              </div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                {user?.email || 'admin@whislly.com'}
+              </div>
+              <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                <FileCheck className="w-3 h-3" />
+                <span>Privacy Policy Agreed (Aug 27, 2026)</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              id="btn-account-sign-out"
+              onClick={onSignOut}
+              className="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>{t.signOut}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Settings Grid: Currency, Language, Theme, Storage */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        {/* 1. Currency Selector */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
+              <Coins className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                {t.currencySetting}
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {t.currencySettingDesc}
+              </p>
+            </div>
+          </div>
+
+          <select
+            id="account-select-currency"
+            value={settings.currency}
+            onChange={(e) => onUpdateSettings({ currency: e.target.value as CurrencyCode })}
+            className="w-full mt-2 p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 cursor-pointer"
+          >
+            {Object.values(CURRENCIES).map((curr) => (
+              <option key={curr.code} value={curr.code}>
+                {curr.code} — {isArabic ? curr.nameAr : curr.name} ({curr.symbol})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* 2. Language & Direction */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-sky-50 dark:bg-sky-950 text-sky-600 dark:text-sky-400">
+              <Globe className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                {t.languageSetting}
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {t.languageSettingDesc}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 mt-2">
+            <button
+              id="account-btn-lang-en"
+              type="button"
+              onClick={() => onUpdateSettings({ language: 'en' })}
+              className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                settings.language === 'en'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                  : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+              }`}
+            >
+              English (LTR)
+            </button>
+            <button
+              id="account-btn-lang-ar"
+              type="button"
+              onClick={() => onUpdateSettings({ language: 'ar' })}
+              className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                settings.language === 'ar'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                  : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+              }`}
+            >
+              العربية (RTL)
+            </button>
+          </div>
+        </div>
+
+        {/* 3. Appearance Theme */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
+              {settings.darkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                {t.appearanceSetting}
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {t.appearanceSettingDesc}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 mt-2">
+            <button
+              id="account-btn-theme-light"
+              type="button"
+              onClick={() => onUpdateSettings({ darkMode: false })}
+              className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-2 cursor-pointer ${
+                !settings.darkMode
+                  ? 'bg-[#0F284E] text-white border-[#0F284E] shadow-md'
+                  : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+              }`}
+            >
+              <Sun className="w-3.5 h-3.5 text-amber-500" />
+              <span>{t.themeLight}</span>
+            </button>
+            <button
+              id="account-btn-theme-dark"
+              type="button"
+              onClick={() => onUpdateSettings({ darkMode: true })}
+              className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-2 cursor-pointer ${
+                settings.darkMode
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                  : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+              }`}
+            >
+              <Moon className="w-3.5 h-3.5 text-sky-300" />
+              <span>{t.themeDark}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 4. Storage Engine Status */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
+              <Database className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                {t.dataStorageMode}
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {t.storageModeLocal}
+              </p>
+            </div>
+          </div>
+
+          <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Local Vault active with instant zero-latency caching & Firebase SDK readiness.</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Agency Billing Profile Configuration for Invoices */}
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
+              <Building2 className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                {t.agencyProfileSettings}
+              </h3>
+              <p className="text-xs text-slate-500">
+                Details printed on exported PDF invoices
+              </p>
+            </div>
+          </div>
+
+          {saveSuccess && (
+            <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold flex items-center gap-1 border border-emerald-200">
+              <Check className="w-3.5 h-3.5" /> Saved
+            </span>
+          )}
+        </div>
+
+        <form onSubmit={handleSaveAgencyProfile} className="space-y-4 pt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                {t.agencyName}
+              </label>
+              <input
+                id="input-setting-agency-name"
+                type="text"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                {t.agencyAddress}
+              </label>
+              <input
+                id="input-setting-agency-address"
+                type="text"
+                value={companyAddress}
+                onChange={(e) => setCompanyAddress(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                {t.agencyEmail}
+              </label>
+              <input
+                id="input-setting-agency-email"
+                type="email"
+                value={companyEmail}
+                onChange={(e) => setCompanyEmail(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                {t.agencyPhone}
+              </label>
+              <input
+                id="input-setting-agency-phone"
+                type="text"
+                value={companyPhone}
+                onChange={(e) => setCompanyPhone(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                {t.agencyWebsite}
+              </label>
+              <input
+                id="input-setting-agency-website"
+                type="text"
+                value={companyWebsite}
+                onChange={(e) => setCompanyWebsite(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+              {t.paymentTerms}
+            </label>
+            <textarea
+              id="input-setting-default-payment-terms"
+              rows={2}
+              value={defaultPaymentTerms}
+              onChange={(e) => setDefaultPaymentTerms(e.target.value)}
+              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-blue-600 focus:outline-none resize-none"
+            />
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              id="btn-save-agency-settings"
+              type="submit"
+              className="px-6 py-2.5 bg-[#0F284E] hover:bg-[#1E3A8A] dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <Check className="w-4 h-4" />
+              <span>{t.saveChanges}</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Data Management & Section 6 Account Deletion */}
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+        <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-400">
+          {t.dataManagement}
+        </h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          {t.dataManagementDesc}
+        </p>
+
+        {importStatus && (
+          <div className="p-3 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900/60 rounded-xl text-xs text-blue-700 dark:text-blue-300">
+            {importStatus}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+          {/* Sample dataset reload */}
+          <button
+            id="btn-reload-sample-data"
+            onClick={onResetSampleData}
+            className="p-3.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-left rtl:text-right transition-all cursor-pointer space-y-1"
+          >
+            <div className="flex items-center gap-2 font-bold text-xs text-slate-800 dark:text-slate-200">
+              <RefreshCw className="w-4 h-4 text-blue-600" />
+              <span>{t.loadSampleData}</span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+              {t.loadSampleDataDesc}
+            </p>
+          </button>
+
+          {/* Export JSON backup */}
+          <button
+            id="btn-export-backup-json"
+            onClick={handleExportBackup}
+            className="p-3.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-left rtl:text-right transition-all cursor-pointer space-y-1"
+          >
+            <div className="flex items-center gap-2 font-bold text-xs text-slate-800 dark:text-slate-200">
+              <Download className="w-4 h-4 text-emerald-600" />
+              <span>{t.exportJsonBackup}</span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+              Download encrypted JSON backup to your disk.
+            </p>
+          </button>
+
+          {/* Import JSON backup */}
+          <div>
+            <input
+              type="file"
+              accept=".json"
+              ref={fileInputRef}
+              onChange={handleImportFile}
+              className="hidden"
+            />
+            <button
+              id="btn-trigger-import-json"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full h-full p-3.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-left rtl:text-right transition-all cursor-pointer space-y-1"
+            >
+              <div className="flex items-center gap-2 font-bold text-xs text-slate-800 dark:text-slate-200">
+                <Upload className="w-4 h-4 text-sky-600" />
+                <span>{t.importJsonBackup}</span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+                Restore clients, spendings, and invoices.
+              </p>
+            </button>
+          </div>
+        </div>
+
+        {/* Delete Account (Privacy Policy Section 6) */}
+        <div className="mt-6 pt-6 border-t border-red-100 dark:border-red-950/60 p-4 rounded-2xl bg-red-50/50 dark:bg-red-950/20 border">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h4 className="text-sm font-bold text-red-700 dark:text-red-400 flex items-center gap-1.5">
+                <Trash2 className="w-4 h-4" />
+                <span>{t.deleteAccountBtn}</span>
+              </h4>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 max-w-xl">
+                {t.deleteAccountDesc}
+              </p>
+            </div>
+
+            <button
+              id="btn-delete-account-trigger"
+              type="button"
+              onClick={onDeleteAccount}
+              className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>{t.deleteAccountBtn}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
