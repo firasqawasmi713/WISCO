@@ -59,34 +59,37 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setLoading(true);
 
     setTimeout(() => {
-      const userProfile: UserProfile = {
-        uid: `usr_${Date.now()}`,
-        email: email.trim().toLowerCase(),
-        displayName: email.split('@')[0],
-        companyName: companyName.trim() || 'Whislly Partner',
-        createdAt: new Date().toISOString(),
-        agreedToPrivacyPolicy: tab === 'signup' ? agreedPolicy : true,
-        privacyPolicyAgreedAt: new Date().toISOString()
-      };
-
-      StorageService.setUser(userProfile);
-      setLoading(false);
-      onSuccess(userProfile);
-    }, 400);
+      if (tab === 'signup') {
+        const res = StorageService.registerUser(email, password, companyName, agreedPolicy);
+        setLoading(false);
+        if (!res.success || !res.user) {
+          setError(res.error || (lang === 'ar' ? 'حدث خطأ أثناء إنشاء الحساب.' : 'Failed to create account.'));
+          return;
+        }
+        onSuccess(res.user);
+      } else {
+        const res = StorageService.loginUser(email, password);
+        setLoading(false);
+        if (!res.success || !res.user) {
+          setError(res.error || (lang === 'ar' ? 'بيانات الدخول غير صحيحة.' : 'Invalid credentials.'));
+          return;
+        }
+        onSuccess(res.user);
+      }
+    }, 300);
   };
 
   const handleQuickDemo = () => {
-    const demoUser: UserProfile = {
-      uid: 'usr_demo_vip',
-      email: 'founder@whislly.com',
-      displayName: 'Finance Director',
-      companyName: 'Whislly Global',
-      createdAt: '2026-08-27T08:00:00.000Z',
-      agreedToPrivacyPolicy: true,
-      privacyPolicyAgreedAt: '2026-08-27T08:00:00.000Z'
-    };
-    StorageService.setUser(demoUser);
-    onSuccess(demoUser);
+    // Quick Demo account with dedicated isolated UID
+    const demoEmail = 'founder@whislly.com';
+    const demoPass = 'demo123456';
+    let res = StorageService.loginUser(demoEmail, demoPass);
+    if (!res.success || !res.user) {
+      res = StorageService.registerUser(demoEmail, demoPass, 'Whislly Global', true);
+    }
+    if (res.user) {
+      onSuccess(res.user);
+    }
   };
 
   return (

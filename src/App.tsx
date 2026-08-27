@@ -43,7 +43,7 @@ export default function App() {
   const [spendings, setSpendings] = useState<Spending[]>(() => StorageService.getSpendings());
 
   // 2. Modals state
-  const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
+  const [authModalOpen, setAuthModalOpen] = useState<boolean>(() => !StorageService.getUser());
   const [privacyPolicyOpen, setPrivacyPolicyOpen] = useState<boolean>(false);
   
   const [clientModalOpen, setClientModalOpen] = useState<boolean>(false);
@@ -81,11 +81,12 @@ export default function App() {
   }, [settings.darkMode, settings.language]);
 
   // Sync state helper
-  const reloadData = () => {
-    setClients(StorageService.getClients());
-    setInvoices(StorageService.getInvoices());
-    setSpendings(StorageService.getSpendings());
-    setSettings(StorageService.getSettings());
+  const reloadData = (uid?: string | null) => {
+    const effectiveUid = uid !== undefined ? uid : user?.uid;
+    setClients(StorageService.getClients(effectiveUid));
+    setInvoices(StorageService.getInvoices(effectiveUid));
+    setSpendings(StorageService.getSpendings(effectiveUid));
+    setSettings(StorageService.getSettings(effectiveUid));
   };
 
   // 4. Client Handlers
@@ -100,8 +101,8 @@ export default function App() {
   };
 
   const handleSaveClient = (clientData: Omit<ClientProject, 'id' | 'createdAt'>, existingId?: string) => {
-    StorageService.saveClient(clientData, existingId);
-    reloadData();
+    StorageService.saveClient(clientData, existingId, user?.uid);
+    reloadData(user?.uid);
   };
 
   const handleDeleteClient = (client: ClientProject) => {
@@ -113,8 +114,8 @@ export default function App() {
         ? `هل أنت متأكد من حذف "${client.name} - ${client.project}"؟ سيتم حذف الفواتير المرتبطة أيضًا.`
         : `Are you sure you want to remove "${client.name} - ${client.project}"? This will also remove the associated invoice.`,
       onConfirm: () => {
-        StorageService.deleteClient(client.id);
-        reloadData();
+        StorageService.deleteClient(client.id, user?.uid);
+        reloadData(user?.uid);
       }
     });
   };
@@ -136,8 +137,8 @@ export default function App() {
   };
 
   const handleUpdateInvoiceStatus = (invoiceId: string, status: InvoiceStatus) => {
-    StorageService.updateInvoiceStatus(invoiceId, status);
-    reloadData();
+    StorageService.updateInvoiceStatus(invoiceId, status, user?.uid);
+    reloadData(user?.uid);
     if (selectedInvoice && selectedInvoice.id === invoiceId) {
       setSelectedInvoice(prev => prev ? { ...prev, status } : null);
     }
@@ -155,8 +156,8 @@ export default function App() {
   };
 
   const handleSaveSpending = (spendingData: Omit<Spending, 'id' | 'createdAt'>, existingId?: string) => {
-    StorageService.saveSpending(spendingData, existingId);
-    reloadData();
+    StorageService.saveSpending(spendingData, existingId, user?.uid);
+    reloadData(user?.uid);
   };
 
   const handleDeleteSpending = (spending: Spending) => {
@@ -168,26 +169,43 @@ export default function App() {
         ? `هل أنت متأكد من حذف مصروف "${spending.item}" بقيمة ${spending.amount}؟`
         : `Are you sure you want to delete "${spending.item}" ($${spending.amount})?`,
       onConfirm: () => {
-        StorageService.deleteSpending(spending.id);
-        reloadData();
+        StorageService.deleteSpending(spending.id, user?.uid);
+        reloadData(user?.uid);
       }
     });
   };
 
   // 7. Account & Settings Handlers
   const handleUpdateSettings = (newSettings: Partial<AppSettings>) => {
-    const updated = StorageService.saveSettings(newSettings);
+    const updated = StorageService.saveSettings(newSettings, user?.uid);
     setSettings(updated);
   };
 
   const handleAuthSuccess = (authenticatedUser: UserProfile) => {
     setUser(authenticatedUser);
+    // Load fresh isolated data for this authenticated user
+    setClients(StorageService.getClients(authenticatedUser.uid));
+    setInvoices(StorageService.getInvoices(authenticatedUser.uid));
+    setSpendings(StorageService.getSpendings(authenticatedUser.uid));
+    setSettings(StorageService.getSettings(authenticatedUser.uid));
+    setSelectedInvoice(null);
+    setEditingClient(null);
+    setEditingSpending(null);
     setAuthModalOpen(false);
   };
 
+  // Strict session & memory clearing on sign out
   const handleSignOut = () => {
-    StorageService.saveUser(null);
+    StorageService.signOut();
+    // Clear all React UI and memory state
     setUser(null);
+    setClients([]);
+    setInvoices([]);
+    setSpendings([]);
+    setSelectedInvoice(null);
+    setEditingClient(null);
+    setEditingSpending(null);
+    setCurrentTab('dashboard');
     setAuthModalOpen(true);
   };
 
@@ -197,20 +215,26 @@ export default function App() {
       isOpen: true,
       title: isAr ? 'حذف الحساب والبيانات نهائياً' : 'Permanently Delete Account & Data',
       message: isAr
-        ? 'بموجب البند 6 من سياسة الخصوصية، سيتم مسح جميع بياناتك وسجلاتك المالية ومشاريعك نهائياً من الذاكرة المحلية.'
+        ? 'بموجب البند 6 من سياسة الخصوصية، سيتم مسح جميع بياناتك وسجلاتك المالية ومشاريعك نهائياً من الذاكرة.'
         : 'In accordance with Section 6 of the Privacy Policy (Data Retention & Deletion), all your clients, invoices, spendings, and profile credentials will be permanently erased.',
       onConfirm: () => {
-        StorageService.clearAllData();
+        StorageService.deleteAccountAndWipeAllData(user?.uid);
+        // Clear all memory state
         setUser(null);
-        reloadData();
+        setClients([]);
+        setInvoices([]);
+        setSpendings([]);
+        setSelectedInvoice(null);
+        setEditingClient(null);
+        setEditingSpending(null);
         setAuthModalOpen(true);
       }
     });
   };
 
   const handleResetSampleData = () => {
-    StorageService.resetToSampleData();
-    reloadData();
+    StorageService.resetToSampleData(user?.uid);
+    reloadData(user?.uid);
   };
 
   const t = TRANSLATIONS[settings.language] || TRANSLATIONS.en;

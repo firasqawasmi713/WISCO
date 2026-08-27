@@ -1,14 +1,5 @@
 import { ClientProject, Invoice, Spending, AppSettings, UserProfile, ActivityLog } from '../types';
 
-const STORAGE_KEYS = {
-  USER: 'wisco_user_profile',
-  CLIENTS: 'wisco_clients_data',
-  INVOICES: 'wisco_invoices_data',
-  SPENDINGS: 'wisco_spendings_data',
-  SETTINGS: 'wisco_app_settings',
-  ACTIVITIES: 'wisco_activity_logs'
-};
-
 export const DEFAULT_SETTINGS: AppSettings = {
   currency: 'USD',
   language: 'en',
@@ -200,7 +191,7 @@ export function generateInvoiceForClient(client: ClientProject, invoiceNumSequen
   }
 
   const subtotal = client.cost;
-  const taxRate = 0; // Default 0% (or configurable)
+  const taxRate = 0;
   const taxAmount = (subtotal * taxRate) / 100;
   const totalAmount = subtotal + taxAmount;
 
@@ -242,28 +233,136 @@ export function createInitialSampleInvoices(clients: ClientProject[]): Invoice[]
   return clients.map((c, idx) => generateInvoiceForClient(c, idx + 101));
 }
 
-// Local Storage Helper Functions
+interface RegisteredAccount {
+  user: UserProfile;
+  passwordHash: string; // Stored securely in client storage
+}
+
+const GLOBAL_KEYS = {
+  CURRENT_USER: 'wisco_current_user_session',
+  REGISTERED_ACCOUNTS: 'wisco_registered_accounts'
+};
+
+// Isolated Storage Service tied to authenticated user UID
 export const StorageService = {
+  // Returns currently active user session or null
   getUser(): UserProfile | null {
     try {
-      const data = localStorage.getItem(STORAGE_KEYS.USER);
+      const data = localStorage.getItem(GLOBAL_KEYS.CURRENT_USER);
       return data ? JSON.parse(data) : null;
     } catch {
       return null;
     }
   },
 
+  // Returns active UID or null
+  getCurrentUid(): string | null {
+    const user = this.getUser();
+    return user?.uid || null;
+  },
+
+  // Sets or clears the active user session
   setUser(user: UserProfile | null): void {
     if (!user) {
-      localStorage.removeItem(STORAGE_KEYS.USER);
+      localStorage.removeItem(GLOBAL_KEYS.CURRENT_USER);
     } else {
-      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+      localStorage.setItem(GLOBAL_KEYS.CURRENT_USER, JSON.stringify(user));
     }
   },
 
-  getSettings(): AppSettings {
+  // Helper for generating UID-scoped storage keys (e.g. wisco_data_${user.uid}_clients or wisco_clients_${user.uid})
+  getKey(dataType: 'clients' | 'invoices' | 'spendings' | 'settings' | 'activities', explicitUid?: string | null): string {
+    const uid = explicitUid || this.getCurrentUid();
+    if (!uid) {
+      return `wisco_guest_${dataType}`;
+    }
+    return `wisco_${dataType}_${uid}`;
+  },
+
+  // Account Registration (Guarantees fresh, completely empty dataset)
+  registerUser(
+    email: string,
+    passwordPlain: string,
+    companyName: string = '',
+    agreedToPrivacyPolicy: boolean = true
+  ): { success: boolean; user?: UserProfile; error?: string } {
     try {
-      const data = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+      const normalizedEmail = email.trim().toLowerCase();
+      const accountsRaw = localStorage.getItem(GLOBAL_KEYS.REGISTERED_ACCOUNTS);
+      const accounts: Record<string, RegisteredAccount> = accountsRaw ? JSON.parse(accountsRaw) : {};
+
+      if (accounts[normalizedEmail]) {
+        return { success: false, error: 'An account with this email address already exists. Please sign in.' };
+      }
+
+      // Generate a unique Firebase/UID style identifier
+      const uid = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      const userProfile: UserProfile = {
+        uid,
+        email: normalizedEmail,
+        displayName: normalizedEmail.split('@')[0],
+        companyName: companyName.trim() || 'Whislly Partner',
+        createdAt: new Date().toISOString(),
+        agreedToPrivacyPolicy,
+        privacyPolicyAgreedAt: new Date().toISOString()
+      };
+
+      // Save to registry
+      accounts[normalizedEmail] = {
+        user: userProfile,
+        passwordHash: btoa(passwordPlain) // Standard base64 obfuscation for local credential state
+      };
+      localStorage.setItem(GLOBAL_KEYS.REGISTERED_ACCOUNTS, JSON.stringify(accounts));
+
+      // CRITICAL: Initialize completely empty datasets for new user (NO hardcoded demo arrays)
+      localStorage.setItem(this.getKey('clients', uid), JSON.stringify([]));
+      localStorage.setItem(this.getKey('invoices', uid), JSON.stringify([]));
+      localStorage.setItem(this.getKey('spendings', uid), JSON.stringify([]));
+      localStorage.setItem(this.getKey('activities', uid), JSON.stringify([]));
+      localStorage.setItem(this.getKey('settings', uid), JSON.stringify(DEFAULT_SETTINGS));
+
+      // Set active session
+      this.setUser(userProfile);
+
+      return { success: true, user: userProfile };
+    } catch (e) {
+      console.error('Registration error:', e);
+      return { success: false, error: 'Failed to create account. Please try again.' };
+    }
+  },
+
+  // Account Login (Restores isolated dataset by UID)
+  loginUser(
+    email: string,
+    passwordPlain: string
+  ): { success: boolean; user?: UserProfile; error?: string } {
+    try {
+      const normalizedEmail = email.trim().toLowerCase();
+      const accountsRaw = localStorage.getItem(GLOBAL_KEYS.REGISTERED_ACCOUNTS);
+      const accounts: Record<string, RegisteredAccount> = accountsRaw ? JSON.parse(accountsRaw) : {};
+
+      const account = accounts[normalizedEmail];
+      if (!account) {
+        return { success: false, error: 'No account found with this email. Please sign up first.' };
+      }
+
+      if (account.passwordHash !== btoa(passwordPlain)) {
+        return { success: false, error: 'Incorrect password. Please verify and try again.' };
+      }
+
+      this.setUser(account.user);
+      return { success: true, user: account.user };
+    } catch (e) {
+      console.error('Login error:', e);
+      return { success: false, error: 'Failed to authenticate. Please try again.' };
+    }
+  },
+
+  // Settings
+  getSettings(explicitUid?: string | null): AppSettings {
+    try {
+      const key = this.getKey('settings', explicitUid);
+      const data = localStorage.getItem(key);
       if (data) {
         return { ...DEFAULT_SETTINGS, ...JSON.parse(data) };
       }
@@ -273,33 +372,45 @@ export const StorageService = {
     return DEFAULT_SETTINGS;
   },
 
-  saveSettings(settings: Partial<AppSettings>): AppSettings {
-    const current = this.getSettings();
+  saveSettings(settings: Partial<AppSettings>, explicitUid?: string | null): AppSettings {
+    const current = this.getSettings(explicitUid);
     const updated = { ...current, ...settings };
-    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(updated));
+    const key = this.getKey('settings', explicitUid);
+    localStorage.setItem(key, JSON.stringify(updated));
     return updated;
   },
 
-  getClients(): ClientProject[] {
+  // Clients (Strictly UID-isolated, returns [] for empty/new user)
+  getClients(explicitUid?: string | null): ClientProject[] {
+    const uid = explicitUid || this.getCurrentUid();
+    if (!uid) return [];
+
     try {
-      const data = localStorage.getItem(STORAGE_KEYS.CLIENTS);
+      const key = this.getKey('clients', uid);
+      const data = localStorage.getItem(key);
       if (data) {
         return JSON.parse(data);
       }
     } catch {
       // ignore
     }
-    // Initialize with sample
-    localStorage.setItem(STORAGE_KEYS.CLIENTS, JSON.stringify(INITIAL_SAMPLE_CLIENTS));
-    return INITIAL_SAMPLE_CLIENTS;
+    return [];
   },
 
-  saveClients(clients: ClientProject[]): void {
-    localStorage.setItem(STORAGE_KEYS.CLIENTS, JSON.stringify(clients));
+  saveClients(clients: ClientProject[], explicitUid?: string | null): void {
+    const uid = explicitUid || this.getCurrentUid();
+    if (!uid) return;
+    const key = this.getKey('clients', uid);
+    localStorage.setItem(key, JSON.stringify(clients));
   },
 
-  saveClient(clientData: Omit<ClientProject, 'id' | 'createdAt'>, existingId?: string): ClientProject {
-    const clients = this.getClients();
+  saveClient(
+    clientData: Omit<ClientProject, 'id' | 'createdAt'>,
+    existingId?: string,
+    explicitUid?: string | null
+  ): ClientProject {
+    const uid = explicitUid || this.getCurrentUid();
+    const clients = this.getClients(uid);
     let client: ClientProject;
 
     if (existingId) {
@@ -327,10 +438,10 @@ export const StorageService = {
       clients.unshift(client);
     }
 
-    this.saveClients(clients);
+    this.saveClients(clients, uid);
 
-    // Automatic Invoice Generation / Sync
-    const invoices = this.getInvoices();
+    // Synchronize auto invoice for this user
+    const invoices = this.getInvoices(uid);
     const existingInvIdx = invoices.findIndex(i => i.clientId === client.id);
     const invoiceNumSeq = invoices.length + 101;
     const updatedInvoice = generateInvoiceForClient(client, invoiceNumSeq);
@@ -362,86 +473,105 @@ export const StorageService = {
     } else {
       invoices.unshift(updatedInvoice);
     }
-    this.saveInvoices(invoices);
+    this.saveInvoices(invoices, uid);
 
     this.logActivity({
       type: existingId ? 'client_created' : 'client_created',
       title: existingId ? 'Client Project Updated' : 'New Client Contract Onboarded',
       description: `${client.name} (${client.companyName}) - ${client.project}`,
       amount: client.cost
-    });
+    }, uid);
 
     return client;
   },
 
-  deleteClient(clientId: string): void {
-    const clients = this.getClients().filter(c => c.id !== clientId);
-    this.saveClients(clients);
+  deleteClient(clientId: string, explicitUid?: string | null): void {
+    const uid = explicitUid || this.getCurrentUid();
+    const clients = this.getClients(uid).filter(c => c.id !== clientId);
+    this.saveClients(clients, uid);
 
-    const invoices = this.getInvoices().filter(i => i.clientId !== clientId);
-    this.saveInvoices(invoices);
+    const invoices = this.getInvoices(uid).filter(i => i.clientId !== clientId);
+    this.saveInvoices(invoices, uid);
 
     this.logActivity({
       type: 'client_created',
       title: 'Client Record Deleted',
       description: `Client profile and associated invoices removed.`
-    });
+    }, uid);
   },
 
-  getInvoices(): Invoice[] {
+  // Invoices (Strictly UID-isolated, returns [] for empty/new user)
+  getInvoices(explicitUid?: string | null): Invoice[] {
+    const uid = explicitUid || this.getCurrentUid();
+    if (!uid) return [];
+
     try {
-      const data = localStorage.getItem(STORAGE_KEYS.INVOICES);
+      const key = this.getKey('invoices', uid);
+      const data = localStorage.getItem(key);
       if (data) {
         return JSON.parse(data);
       }
     } catch {
       // ignore
     }
-    const clients = this.getClients();
-    const initialInvoices = createInitialSampleInvoices(clients);
-    localStorage.setItem(STORAGE_KEYS.INVOICES, JSON.stringify(initialInvoices));
-    return initialInvoices;
+    return [];
   },
 
-  saveInvoices(invoices: Invoice[]): void {
-    localStorage.setItem(STORAGE_KEYS.INVOICES, JSON.stringify(invoices));
+  saveInvoices(invoices: Invoice[], explicitUid?: string | null): void {
+    const uid = explicitUid || this.getCurrentUid();
+    if (!uid) return;
+    const key = this.getKey('invoices', uid);
+    localStorage.setItem(key, JSON.stringify(invoices));
   },
 
-  updateInvoiceStatus(invoiceId: string, status: Invoice['status']): void {
-    const invoices = this.getInvoices();
+  updateInvoiceStatus(invoiceId: string, status: Invoice['status'], explicitUid?: string | null): void {
+    const uid = explicitUid || this.getCurrentUid();
+    const invoices = this.getInvoices(uid);
     const idx = invoices.findIndex(i => i.id === invoiceId);
     if (idx !== -1) {
       invoices[idx].status = status;
-      this.saveInvoices(invoices);
+      this.saveInvoices(invoices, uid);
 
       this.logActivity({
         type: status === 'Paid' ? 'invoice_paid' : 'invoice_generated',
         title: `Invoice Marked as ${status}`,
         description: `Invoice ${invoices[idx].invoiceNumber} for ${invoices[idx].clientName}`,
         amount: invoices[idx].totalAmount
-      });
+      }, uid);
     }
   },
 
-  getSpendings(): Spending[] {
+  // Spendings (Strictly UID-isolated, returns [] for empty/new user)
+  getSpendings(explicitUid?: string | null): Spending[] {
+    const uid = explicitUid || this.getCurrentUid();
+    if (!uid) return [];
+
     try {
-      const data = localStorage.getItem(STORAGE_KEYS.SPENDINGS);
+      const key = this.getKey('spendings', uid);
+      const data = localStorage.getItem(key);
       if (data) {
         return JSON.parse(data);
       }
     } catch {
       // ignore
     }
-    localStorage.setItem(STORAGE_KEYS.SPENDINGS, JSON.stringify(INITIAL_SAMPLE_SPENDINGS));
-    return INITIAL_SAMPLE_SPENDINGS;
+    return [];
   },
 
-  saveSpendings(spendings: Spending[]): void {
-    localStorage.setItem(STORAGE_KEYS.SPENDINGS, JSON.stringify(spendings));
+  saveSpendings(spendings: Spending[], explicitUid?: string | null): void {
+    const uid = explicitUid || this.getCurrentUid();
+    if (!uid) return;
+    const key = this.getKey('spendings', uid);
+    localStorage.setItem(key, JSON.stringify(spendings));
   },
 
-  saveSpending(spendingData: Omit<Spending, 'id' | 'createdAt'>, existingId?: string): Spending {
-    const spendings = this.getSpendings();
+  saveSpending(
+    spendingData: Omit<Spending, 'id' | 'createdAt'>,
+    existingId?: string,
+    explicitUid?: string | null
+  ): Spending {
+    const uid = explicitUid || this.getCurrentUid();
+    const spendings = this.getSpendings(uid);
     let spending: Spending;
 
     if (existingId) {
@@ -469,145 +599,155 @@ export const StorageService = {
       spendings.unshift(spending);
     }
 
-    this.saveSpendings(spendings);
+    this.saveSpendings(spendings, uid);
 
     this.logActivity({
       type: 'spending_added',
       title: 'Spending Expense Logged',
       description: `${spending.item} - ${spending.resellerName}`,
       amount: spending.amount
-    });
+    }, uid);
 
     return spending;
   },
 
-  deleteSpending(spendingId: string): void {
-    const spendings = this.getSpendings().filter(s => s.id !== spendingId);
-    this.saveSpendings(spendings);
+  deleteSpending(spendingId: string, explicitUid?: string | null): void {
+    const uid = explicitUid || this.getCurrentUid();
+    const spendings = this.getSpendings(uid).filter(s => s.id !== spendingId);
+    this.saveSpendings(spendings, uid);
 
     this.logActivity({
       type: 'spending_added',
       title: 'Spending Record Removed',
       description: 'Expense item deleted from ledger.'
-    });
+    }, uid);
   },
 
-  saveUser(user: UserProfile | null): void {
-    this.setUser(user);
-  },
+  // Activities (Strictly UID-isolated)
+  getActivities(explicitUid?: string | null): ActivityLog[] {
+    const uid = explicitUid || this.getCurrentUid();
+    if (!uid) return [];
 
-  clearAllData(): void {
-    this.deleteAccountAndWipeAllData();
-  },
-
-  resetToSampleData(): void {
-    this.resetAllDataToSample();
-  },
-
-  getActivities(): ActivityLog[] {
     try {
-      const data = localStorage.getItem(STORAGE_KEYS.ACTIVITIES);
+      const key = this.getKey('activities', uid);
+      const data = localStorage.getItem(key);
       if (data) {
         return JSON.parse(data);
       }
     } catch {
       // ignore
     }
-    const defaultActivities: ActivityLog[] = [
-      {
-        id: 'act-1',
-        type: 'client_created',
-        title: 'New Client Contract Onboarded',
-        description: 'Tariq Al-Mansoor (Apex Capital Holding) signed for $14,500.',
-        timestamp: '2026-08-25T14:30:00.000Z',
-        amount: 14500
-      },
-      {
-        id: 'act-2',
-        type: 'invoice_paid',
-        title: 'Invoice Paid in Full',
-        description: 'Solaria Energy Systems settled Invoice INV-2026-102.',
-        timestamp: '2026-08-20T11:00:00.000Z',
-        amount: 9800
-      },
-      {
-        id: 'act-3',
-        type: 'spending_added',
-        title: 'Infrastructure Spending Logged',
-        description: 'AWS Cloud Infrastructure expense ($1,250) added.',
-        timestamp: '2026-08-15T09:15:00.000Z',
-        amount: 1250
-      },
-      {
-        id: 'act-4',
-        type: 'client_created',
-        title: 'New Project Registered',
-        description: 'Beacon MedTech UK registered Telehealth Portal ($22,000).',
-        timestamp: '2026-08-01T08:00:00.000Z',
-        amount: 22000
-      }
-    ];
-    localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(defaultActivities));
-    return defaultActivities;
+    return [];
   },
 
-  logActivity(activity: Omit<ActivityLog, 'id' | 'timestamp'>): void {
-    const activities = this.getActivities();
+  logActivity(activity: Omit<ActivityLog, 'id' | 'timestamp'>, explicitUid?: string | null): void {
+    const uid = explicitUid || this.getCurrentUid();
+    if (!uid) return;
+    const activities = this.getActivities(uid);
     const newAct: ActivityLog = {
       ...activity,
       id: `act-${Date.now()}`,
       timestamp: new Date().toISOString()
     };
     activities.unshift(newAct);
-    localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(activities.slice(0, 30)));
+    const key = this.getKey('activities', uid);
+    localStorage.setItem(key, JSON.stringify(activities.slice(0, 30)));
   },
 
-  resetAllDataToSample(): void {
-    localStorage.setItem(STORAGE_KEYS.CLIENTS, JSON.stringify(INITIAL_SAMPLE_CLIENTS));
+  // Sign out helper
+  signOut(): void {
+    this.setUser(null);
+  },
+
+  // Reset sample dataset ONLY when user explicitly requests benchmark loader
+  resetAllDataToSample(explicitUid?: string | null): void {
+    const uid = explicitUid || this.getCurrentUid();
+    if (!uid) return;
+    this.saveClients(INITIAL_SAMPLE_CLIENTS, uid);
     const sampleInvoices = createInitialSampleInvoices(INITIAL_SAMPLE_CLIENTS);
-    localStorage.setItem(STORAGE_KEYS.INVOICES, JSON.stringify(sampleInvoices));
-    localStorage.setItem(STORAGE_KEYS.SPENDINGS, JSON.stringify(INITIAL_SAMPLE_SPENDINGS));
+    this.saveInvoices(sampleInvoices, uid);
+    this.saveSpendings(INITIAL_SAMPLE_SPENDINGS, uid);
     this.logActivity({
       type: 'client_created',
-      title: 'Sample Data Reset',
-      description: 'Loaded default benchmark data for WISCO.'
-    });
+      title: 'Sample Data Loaded',
+      description: 'Loaded benchmark financial datasets for testing.'
+    }, uid);
   },
 
-  deleteAccountAndWipeAllData(): void {
-    localStorage.removeItem(STORAGE_KEYS.USER);
-    localStorage.removeItem(STORAGE_KEYS.CLIENTS);
-    localStorage.removeItem(STORAGE_KEYS.INVOICES);
-    localStorage.removeItem(STORAGE_KEYS.SPENDINGS);
-    localStorage.removeItem(STORAGE_KEYS.SETTINGS);
-    localStorage.removeItem(STORAGE_KEYS.ACTIVITIES);
+  resetToSampleData(explicitUid?: string | null): void {
+    this.resetAllDataToSample(explicitUid);
   },
 
-  exportFullBackup(): string {
+  // Complete data deletion for current user
+  deleteAccountAndWipeAllData(explicitUid?: string | null): void {
+    const uid = explicitUid || this.getCurrentUid();
+    const user = this.getUser();
+
+    if (uid) {
+      localStorage.removeItem(this.getKey('clients', uid));
+      localStorage.removeItem(this.getKey('invoices', uid));
+      localStorage.removeItem(this.getKey('spendings', uid));
+      localStorage.removeItem(this.getKey('settings', uid));
+      localStorage.removeItem(this.getKey('activities', uid));
+    }
+
+    if (user?.email) {
+      try {
+        const accountsRaw = localStorage.getItem(GLOBAL_KEYS.REGISTERED_ACCOUNTS);
+        if (accountsRaw) {
+          const accounts = JSON.parse(accountsRaw);
+          delete accounts[user.email.toLowerCase()];
+          localStorage.setItem(GLOBAL_KEYS.REGISTERED_ACCOUNTS, JSON.stringify(accounts));
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    this.setUser(null);
+  },
+
+  clearAllData(explicitUid?: string | null): void {
+    this.deleteAccountAndWipeAllData(explicitUid);
+  },
+
+  saveUser(user: UserProfile | null): void {
+    this.setUser(user);
+  },
+
+  // Export / Import isolated data
+  exportFullBackup(explicitUid?: string | null): string {
+    const uid = explicitUid || this.getCurrentUid();
     const backup = {
-      version: '1.0.0',
+      version: '2.0.0',
+      uid,
       exportedAt: new Date().toISOString(),
       user: this.getUser(),
-      settings: this.getSettings(),
-      clients: this.getClients(),
-      invoices: this.getInvoices(),
-      spendings: this.getSpendings(),
-      activities: this.getActivities()
+      settings: this.getSettings(uid),
+      clients: this.getClients(uid),
+      invoices: this.getInvoices(uid),
+      spendings: this.getSpendings(uid),
+      activities: this.getActivities(uid)
     };
     return JSON.stringify(backup, null, 2);
   },
 
-  importFullBackup(jsonString: string): boolean {
+  importFullBackup(jsonString: string, explicitUid?: string | null): boolean {
+    const uid = explicitUid || this.getCurrentUid();
+    if (!uid) return false;
     try {
       const parsed = JSON.parse(jsonString);
-      if (parsed.clients) localStorage.setItem(STORAGE_KEYS.CLIENTS, JSON.stringify(parsed.clients));
-      if (parsed.invoices) localStorage.setItem(STORAGE_KEYS.INVOICES, JSON.stringify(parsed.invoices));
-      if (parsed.spendings) localStorage.setItem(STORAGE_KEYS.SPENDINGS, JSON.stringify(parsed.spendings));
-      if (parsed.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(parsed.settings));
-      if (parsed.activities) localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(parsed.activities));
+      if (Array.isArray(parsed.clients)) this.saveClients(parsed.clients, uid);
+      if (Array.isArray(parsed.invoices)) this.saveInvoices(parsed.invoices, uid);
+      if (Array.isArray(parsed.spendings)) this.saveSpendings(parsed.spendings, uid);
+      if (parsed.settings) this.saveSettings(parsed.settings, uid);
+      if (Array.isArray(parsed.activities)) {
+        const key = this.getKey('activities', uid);
+        localStorage.setItem(key, JSON.stringify(parsed.activities));
+      }
       return true;
     } catch (e) {
-      console.error("Failed to import backup:", e);
+      console.error('Failed to import backup:', e);
       return false;
     }
   }

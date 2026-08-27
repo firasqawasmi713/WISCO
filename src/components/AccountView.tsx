@@ -78,12 +78,12 @@ export const AccountView: React.FC<AccountViewProps> = ({
   };
 
   const handleExportBackup = () => {
-    const jsonStr = StorageService.exportFullBackup();
+    const jsonStr = StorageService.exportFullBackup(user?.uid);
     const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `WISCO_Backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `WISCO_Backup_${user?.uid || 'user'}_${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -95,7 +95,7 @@ export const AccountView: React.FC<AccountViewProps> = ({
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
-      const success = StorageService.importFullBackup(content);
+      const success = StorageService.importFullBackup(content, user?.uid);
       if (success) {
         setImportStatus('Backup restored successfully!');
         onReloadAllData();

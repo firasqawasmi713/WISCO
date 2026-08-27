@@ -25,27 +25,32 @@ interface DashboardViewProps {
   clients: ClientProject[];
   invoices: Invoice[];
   spendings: Spending[];
-  activities: ActivityLog[];
+  activities?: ActivityLog[];
   currency: CurrencyCode;
   lang: LanguageCode;
-  darkMode: boolean;
+  darkMode?: boolean;
   onNavigate: (tab: NavTab) => void;
-  onOpenAddClient: () => void;
-  onOpenAddSpending: () => void;
+  onAddClient?: () => void;
+  onOpenAddClient?: () => void;
+  onAddSpending?: () => void;
+  onOpenAddSpending?: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   clients,
   invoices,
   spendings,
-  activities,
   currency,
   lang,
-  darkMode,
+  darkMode = false,
   onNavigate,
+  onAddClient,
   onOpenAddClient,
+  onAddSpending,
   onOpenAddSpending
 }) => {
+  const handleAddClientAction = onAddClient || onOpenAddClient || (() => onNavigate('clients'));
+  const handleAddSpendingAction = onAddSpending || onOpenAddSpending || (() => onNavigate('spendings'));
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
   const isArabic = lang === 'ar';
 
@@ -428,43 +433,55 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             <div className="space-y-4">
-              {clients.slice(0, 4).map((client, idx) => {
-                const badgeColors = [
-                  'bg-orange-100 text-orange-600 dark:bg-orange-950/70 dark:text-orange-300',
-                  'bg-purple-100 text-purple-600 dark:bg-purple-950/70 dark:text-purple-300',
-                  'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/70 dark:text-emerald-300',
-                  'bg-blue-100 text-blue-600 dark:bg-blue-950/70 dark:text-blue-300'
-                ];
-                const colorClass = badgeColors[idx % badgeColors.length];
-                const initials = client.name
-                  ? client.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
-                  : 'CL';
-
-                return (
-                  <div
-                    key={client.id}
-                    className="flex items-center justify-between gap-3 p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+              {clients.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 dark:text-slate-500 text-xs">
+                  <p>{isArabic ? 'لا توجد مشاريع عملاء مسجلة حتى الآن' : 'No client projects onboarded yet.'}</p>
+                  <button
+                    onClick={handleAddClientAction}
+                    className="mt-2 text-blue-600 dark:text-sky-400 font-bold hover:underline cursor-pointer"
                   >
-                    <div className="flex items-center space-x-3 rtl:space-x-reverse overflow-hidden">
-                      <div className={`w-10 h-10 rounded-xl ${colorClass} flex items-center justify-center font-bold text-xs shrink-0`}>
-                        {initials}
-                      </div>
-                      <div className="flex-1 overflow-hidden">
-                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">
-                          {client.name}
-                        </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                          {client.companyName} • {client.project}
-                        </p>
-                      </div>
-                    </div>
+                    {isArabic ? '+ إضافة أول مشروع' : '+ Add your first client project'}
+                  </button>
+                </div>
+              ) : (
+                clients.slice(0, 4).map((client, idx) => {
+                  const badgeColors = [
+                    'bg-orange-100 text-orange-600 dark:bg-orange-950/70 dark:text-orange-300',
+                    'bg-purple-100 text-purple-600 dark:bg-purple-950/70 dark:text-purple-300',
+                    'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/70 dark:text-emerald-300',
+                    'bg-blue-100 text-blue-600 dark:bg-blue-950/70 dark:text-blue-300'
+                  ];
+                  const colorClass = badgeColors[idx % badgeColors.length];
+                  const initials = client.name
+                    ? client.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                    : 'CL';
 
-                    <p className="text-sm font-bold text-[#0F284E] dark:text-sky-300 shrink-0">
-                      {formatCurrency(client.cost, currency, isArabic)}
-                    </p>
-                  </div>
-                );
-              })}
+                  return (
+                    <div
+                      key={client.id}
+                      className="flex items-center justify-between gap-3 p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                    >
+                      <div className="flex items-center space-x-3 rtl:space-x-reverse overflow-hidden">
+                        <div className={`w-10 h-10 rounded-xl ${colorClass} flex items-center justify-center font-bold text-xs shrink-0`}>
+                          {initials}
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                          <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">
+                            {client.name}
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                            {client.companyName} • {client.project}
+                          </p>
+                        </div>
+                      </div>
+
+                      <p className="text-sm font-bold text-[#0F284E] dark:text-sky-300 shrink-0">
+                        {formatCurrency(client.cost, currency, isArabic)}
+                      </p>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -498,35 +515,47 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             <div className="space-y-4">
-              {spendings.slice(0, 4).map((spending) => (
-                <div
-                  key={spending.id}
-                  className="flex items-center justify-between gap-3 p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                >
-                  <div className="flex items-center space-x-3 rtl:space-x-reverse overflow-hidden">
-                    <div className="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-950/70 text-rose-600 dark:text-rose-300 flex items-center justify-center font-bold text-xs shrink-0">
-                      <Wallet className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1 overflow-hidden">
-                      <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">
-                        {spending.item}
-                      </p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                        {spending.resellerName} • {spending.category}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="text-right rtl:text-left shrink-0">
-                    <p className="text-sm font-bold text-rose-600 dark:text-rose-400">
-                      -{formatCurrency(spending.amount, currency, isArabic)}
-                    </p>
-                    <p className="text-[10px] text-slate-400">
-                      {spending.date}
-                    </p>
-                  </div>
+              {spendings.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 dark:text-slate-500 text-xs">
+                  <p>{isArabic ? 'لا توجد مصاريف مسجلة حتى الآن' : 'No direct spendings logged yet.'}</p>
+                  <button
+                    onClick={handleAddSpendingAction}
+                    className="mt-2 text-rose-600 dark:text-rose-400 font-bold hover:underline cursor-pointer"
+                  >
+                    {isArabic ? '+ تسجيل أول مصروف' : '+ Log your first expense'}
+                  </button>
                 </div>
-              ))}
+              ) : (
+                spendings.slice(0, 4).map((spending) => (
+                  <div
+                    key={spending.id}
+                    className="flex items-center justify-between gap-3 p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                  >
+                    <div className="flex items-center space-x-3 rtl:space-x-reverse overflow-hidden">
+                      <div className="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-950/70 text-rose-600 dark:text-rose-300 flex items-center justify-center font-bold text-xs shrink-0">
+                        <Wallet className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1 overflow-hidden">
+                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">
+                          {spending.item}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                          {spending.resellerName} • {spending.category}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right rtl:text-left shrink-0">
+                      <p className="text-sm font-bold text-rose-600 dark:text-rose-400">
+                        -{formatCurrency(spending.amount, currency, isArabic)}
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        {spending.date}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
