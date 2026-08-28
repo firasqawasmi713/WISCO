@@ -231,8 +231,14 @@ export function mapProfileToRow(profile: UserProfile, settings?: Partial<AppSett
 export const SupabaseService = {
   client: supabase,
 
-  // 1. Authentication
-  async signUp(payload: RegisterPayload): Promise<{ success: boolean; user?: UserProfile; error?: string }> {
+  // 1. Authentication & OTP Flow
+  async signUp(payload: RegisterPayload): Promise<{ 
+    success: boolean; 
+    user?: UserProfile; 
+    requiresVerification?: boolean; 
+    email?: string;
+    error?: string; 
+  }> {
     try {
       const email = payload.email.trim().toLowerCase();
       
@@ -241,9 +247,13 @@ export const SupabaseService = {
         password: payload.passwordPlain,
         options: {
           data: {
+            agency_name: payload.companyName,
             company_name: payload.companyName,
+            location: payload.companyAddress,
             company_address: payload.companyAddress,
+            website: payload.companyWebsite,
             company_website: payload.companyWebsite,
+            contact_email: payload.companyEmail,
             company_email: payload.companyEmail,
             default_payment_terms: payload.defaultPaymentTerms,
             company_logo: payload.companyLogo || '',
@@ -261,22 +271,68 @@ export const SupabaseService = {
         return { success: false, error: 'Sign up failed. Please try again.' };
       }
 
+      // If email confirmation is enabled, session is null or confirmation is required
+      return { 
+        success: true, 
+        requiresVerification: true, 
+        email, 
+        user: undefined 
+      };
+    } catch (e: any) {
+      console.error('Supabase sign up error:', e);
+      return { success: false, error: e.message || 'An unexpected error occurred during sign up.' };
+    }
+  },
+
+  async verifySignUpOtp(
+    email: string, 
+    token: string, 
+    pendingProfile?: Partial<RegisterPayload>
+  ): Promise<{ success: boolean; user?: UserProfile; error?: string }> {
+    try {
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanToken = token.trim();
+
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: cleanEmail,
+        token: cleanToken,
+        type: 'signup'
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      const authUser = data.user;
+      if (!authUser) {
+        return { success: false, error: 'Verification failed. Please check your 6-digit code and try again.' };
+      }
+
+      // Extract metadata from auth user or pending registration payload
+      const meta = authUser.user_metadata || {};
+      const companyName = pendingProfile?.companyName || meta.company_name || meta.agency_name || cleanEmail.split('@')[0];
+      const companyAddress = pendingProfile?.companyAddress || meta.company_address || meta.location || '';
+      const companyWebsite = pendingProfile?.companyWebsite || meta.company_website || meta.website || '';
+      const companyEmail = pendingProfile?.companyEmail || meta.company_email || meta.contact_email || cleanEmail;
+      const defaultPaymentTerms = pendingProfile?.defaultPaymentTerms || meta.default_payment_terms || 'Payment due within 30 days of invoice date.';
+      const companyLogo = pendingProfile?.companyLogo || meta.company_logo || '';
+
       const userProfile: UserProfile = {
         uid: authUser.id,
-        email: authUser.email || email,
-        displayName: payload.companyName || email.split('@')[0],
-        companyName: payload.companyName,
-        companyAddress: payload.companyAddress,
-        companyWebsite: payload.companyWebsite,
-        companyEmail: payload.companyEmail,
-        companyLogo: payload.companyLogo || '',
-        defaultPaymentTerms: payload.defaultPaymentTerms,
+        email: authUser.email || cleanEmail,
+        displayName: companyName,
+        companyName,
+        companyAddress,
+        companyWebsite,
+        companyEmail,
+        companyLogo,
+        defaultPaymentTerms,
         createdAt: authUser.created_at || new Date().toISOString(),
-        agreedToPrivacyPolicy: payload.agreedToPrivacyPolicy,
+        agreedToPrivacyPolicy: true,
         privacyPolicyAgreedAt: new Date().toISOString()
       };
 
-      // Create / Upsert initial profile in `profiles` table
+      // Create / Upsert user's row in `profiles` table using the user's newly authenticated data.user.id
       try {
         await supabase
           .from('profiles')
@@ -299,13 +355,31 @@ export const SupabaseService = {
             updated_at: new Date().toISOString()
           });
       } catch (profileErr) {
-        console.warn('Profiles table insert notice (metadata preserved in auth):', profileErr);
+        console.warn('Profiles table insert notice:', profileErr);
       }
 
       return { success: true, user: userProfile };
     } catch (e: any) {
-      console.error('Supabase sign up error:', e);
-      return { success: false, error: e.message || 'An unexpected error occurred during sign up.' };
+      console.error('Supabase verifyOtp error:', e);
+      return { success: false, error: e.message || 'Verification failed. Please try again.' };
+    }
+  },
+
+  async resendSignUpOtp(email: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const cleanEmail = email.trim().toLowerCase();
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: cleanEmail
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+      return { success: true };
+    } catch (e: any) {
+      console.error('Supabase resend OTP error:', e);
+      return { success: false, error: e.message || 'Failed to resend verification code.' };
     }
   },
 

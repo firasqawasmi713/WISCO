@@ -58,6 +58,20 @@ export const TRANSLATIONS = {
     agencyLockedExplanation: "Core agency identity details (Name, Location, Website, Contact Email) were established during onboarding and are permanently locked for invoice integrity and financial auditing. You may update your Agency Logo and Default Payment Terms at any time below.",
     savePaymentTermsBtn: "Save Payment Terms",
 
+    // Email OTP Verification
+    emailVerificationTitle: "Email Verification",
+    emailVerificationSub: "We sent a 6-digit code to",
+    enterOtpPrompt: "Enter 6-digit verification code",
+    verifyAndCompleteBtn: "Verify & Complete Registration",
+    verifyingCode: "Verifying Code...",
+    resendCodeBtn: "Resend Code",
+    resendingCode: "Sending...",
+    codeResentNotice: "A fresh 6-digit code has been sent to your email.",
+    resendCooldown: "Resend in",
+    seconds: "s",
+    backToSignUp: "Back to Registration Form",
+    invalidOtpError: "Please enter the complete 6-digit verification code.",
+
     // Privacy Policy Modal
     privacyPolicyTitle: "WISCO Privacy Policy",
     privacyPolicySub: "Operated by Whislly, Amman, Jordan",
@@ -281,6 +295,20 @@ export const TRANSLATIONS = {
     lockedTooltip: "مقفل بعد التسجيل لضمان موثوقية وتدقيق الفواتير",
     agencyLockedExplanation: "تم تثبيت بيانات هوية الشركة الأساسية (الاسم، المقر، الموقع، بريد التواصل) أثناء مرحلة التسجيل وأصبحت مقفلة نهائيًا للحفاظ على تدقيق الفواتير. يمكنك تحديث الشعار وشروط الدفع الافتراضية في أي وقت أدناه.",
     savePaymentTermsBtn: "حفظ شروط الدفع",
+
+    // Email OTP Verification
+    emailVerificationTitle: "تأكيد البريد الإلكتروني",
+    emailVerificationSub: "أرسلنا رمز تحقق مكوّن من 6 أرقام إلى",
+    enterOtpPrompt: "أدخل رمز التحقق المكوّن من 6 أرقام",
+    verifyAndCompleteBtn: "تأكيد وإتمام التسجيل",
+    verifyingCode: "جاري التحقق من الرمز...",
+    resendCodeBtn: "إعادة إرسال الرمز",
+    resendingCode: "جاري الإرسال...",
+    codeResentNotice: "تم إرسال رمز تحقق جديد مكوّن من 6 أرقام إلى بريدك الإلكتروني بنجاح.",
+    resendCooldown: "إعادة الإرسال بعد",
+    seconds: "ثانية",
+    backToSignUp: "الرجوع لتعديل بيانات التسجيل",
+    invalidOtpError: "يرجى إدخال جميع أرقام رمز التحقق الستة.",
 
     // Privacy Policy Modal
     privacyPolicyTitle: "سياسة خصوصية ويسكو (WISCO)",

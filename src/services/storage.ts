@@ -113,14 +113,69 @@ export const StorageService = {
     return `wisco_${dataType}_${uid}`;
   },
 
-  // Account Registration via Supabase Auth + Supabase profiles table
+  // Account Registration via Supabase Auth
   async registerUser(
     payload: RegisterPayload
-  ): Promise<{ success: boolean; user?: UserProfile; error?: string }> {
+  ): Promise<{ success: boolean; requiresVerification?: boolean; email?: string; user?: UserProfile; error?: string }> {
     try {
       const res = await SupabaseService.signUp(payload);
-      if (!res.success || !res.user) {
+      if (!res.success) {
         return { success: false, error: res.error || 'Registration failed.' };
+      }
+
+      if (res.requiresVerification) {
+        return { 
+          success: true, 
+          requiresVerification: true, 
+          email: payload.email.trim().toLowerCase() 
+        };
+      }
+
+      if (res.user) {
+        const userProfile = res.user;
+        const uid = userProfile.uid;
+
+        // Initialize local settings & user record
+        const initialSettings: AppSettings = {
+          ...DEFAULT_SETTINGS,
+          companyName: payload.companyName || 'Whislly Partner',
+          companyAddress: payload.companyAddress || 'Amman, Jordan',
+          companyWebsite: payload.companyWebsite || 'www.company.com',
+          companyEmail: payload.companyEmail || payload.email,
+          companyLogo: payload.companyLogo || '',
+          defaultPaymentTerms: payload.defaultPaymentTerms || DEFAULT_SETTINGS.defaultPaymentTerms
+        };
+
+        localStorage.setItem(this.getKey('profile', uid), JSON.stringify(userProfile));
+        localStorage.setItem(this.getKey('settings', uid), JSON.stringify(initialSettings));
+        localStorage.setItem(this.getKey('clients', uid), JSON.stringify([]));
+        localStorage.setItem(this.getKey('invoices', uid), JSON.stringify([]));
+        localStorage.setItem(this.getKey('spendings', uid), JSON.stringify([]));
+        localStorage.setItem(this.getKey('activities', uid), JSON.stringify([]));
+
+        // Set active session
+        this.setUser(userProfile);
+
+        return { success: true, user: userProfile };
+      }
+
+      return { success: true, requiresVerification: true, email: payload.email.trim().toLowerCase() };
+    } catch (e: any) {
+      console.error('Registration error:', e);
+      return { success: false, error: e.message || 'Failed to create account. Please try again.' };
+    }
+  },
+
+  // Verify 6-digit OTP and complete onboarding
+  async verifyOtpAndCompleteRegistration(
+    email: string,
+    token: string,
+    pendingPayload?: RegisterPayload
+  ): Promise<{ success: boolean; user?: UserProfile; error?: string }> {
+    try {
+      const res = await SupabaseService.verifySignUpOtp(email, token, pendingPayload);
+      if (!res.success || !res.user) {
+        return { success: false, error: res.error || 'Invalid or expired verification code.' };
       }
 
       const userProfile = res.user;
@@ -129,12 +184,12 @@ export const StorageService = {
       // Initialize local settings & user record
       const initialSettings: AppSettings = {
         ...DEFAULT_SETTINGS,
-        companyName: payload.companyName || 'Whislly Partner',
-        companyAddress: payload.companyAddress || 'Amman, Jordan',
-        companyWebsite: payload.companyWebsite || 'www.company.com',
-        companyEmail: payload.companyEmail || payload.email,
-        companyLogo: payload.companyLogo || '',
-        defaultPaymentTerms: payload.defaultPaymentTerms || DEFAULT_SETTINGS.defaultPaymentTerms
+        companyName: pendingPayload?.companyName || userProfile.companyName || 'Whislly Partner',
+        companyAddress: pendingPayload?.companyAddress || userProfile.companyAddress || 'Amman, Jordan',
+        companyWebsite: pendingPayload?.companyWebsite || userProfile.companyWebsite || 'www.company.com',
+        companyEmail: pendingPayload?.companyEmail || userProfile.companyEmail || userProfile.email,
+        companyLogo: pendingPayload?.companyLogo || userProfile.companyLogo || '',
+        defaultPaymentTerms: pendingPayload?.defaultPaymentTerms || userProfile.defaultPaymentTerms || DEFAULT_SETTINGS.defaultPaymentTerms
       };
 
       localStorage.setItem(this.getKey('profile', uid), JSON.stringify(userProfile));
@@ -149,8 +204,17 @@ export const StorageService = {
 
       return { success: true, user: userProfile };
     } catch (e: any) {
-      console.error('Registration error:', e);
-      return { success: false, error: e.message || 'Failed to create account. Please try again.' };
+      console.error('Verify OTP error:', e);
+      return { success: false, error: e.message || 'Verification failed. Please try again.' };
+    }
+  },
+
+  // Resend 6-digit verification code
+  async resendVerificationCode(email: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      return await SupabaseService.resendSignUpOtp(email);
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Failed to resend code.' };
     }
   },
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Mail, 
   Lock, 
@@ -13,6 +13,11 @@ import {
   UploadCloud, 
   Trash, 
   CheckCircle2,
+  KeyRound,
+  ArrowLeft,
+  ArrowRight,
+  RefreshCw,
+  Sparkles,
   Info
 } from 'lucide-react';
 import { TRANSLATIONS } from '../constants/translations';
@@ -35,8 +40,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
   const isArabic = lang === 'ar';
   const logoInputRef = useRef<HTMLInputElement | null>(null);
+  const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const [tab, setTab] = useState<'signin' | 'signup'>('signin');
+  const [step, setStep] = useState<'form' | 'verify'>('form');
   
   // Credentials
   const [email, setEmail] = useState('');
@@ -58,10 +65,36 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   
   // Legal
   const [agreedPolicy, setAgreedPolicy] = useState(false);
+
+  // OTP Verification State
+  const [verificationEmail, setVerificationEmail] = useState('');
+  const [pendingRegisterPayload, setPendingRegisterPayload] = useState<RegisterPayload | null>(null);
+  const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendNotice, setResendNotice] = useState<string | null>(null);
   
   // State
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Cooldown countdown effect
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  // Focus first OTP input when transitioning to verification step
+  useEffect(() => {
+    if (step === 'verify') {
+      setTimeout(() => {
+        otpInputRefs.current[0]?.focus();
+      }, 150);
+    }
+  }, [step]);
 
   if (!isOpen) return null;
 
@@ -117,14 +150,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
+  // Strict email regex validation (e.g. user@domain.com)
+  const isValidEmail = (emailStr: string): boolean => {
+    const strictEmailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    return strictEmailRegex.test(emailStr.trim());
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    setResendNotice(null);
 
     if (tab === 'signin') {
-      if (!email || !emailRegex.test(email.trim())) {
+      if (!email || !isValidEmail(email)) {
         setError(t.authErrorEmailReq);
         return;
       }
@@ -148,8 +186,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setError(err.message || (isArabic ? 'حدث خطأ أثناء تسجيل الدخول.' : 'Authentication error.'));
       }
     } else {
-      // SIGN UP VALIDATION
-      if (!email || !emailRegex.test(email.trim())) {
+      // SIGN UP VALIDATION WITH STRICT EMAIL REGEX
+      if (!email || !isValidEmail(email)) {
         setError(t.authErrorEmailReq);
         return;
       }
@@ -179,8 +217,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         return;
       }
 
-      if (!companyEmail || !emailRegex.test(companyEmail.trim())) {
-        setError(t.authErrorContactEmailReq || (isArabic ? 'بريد التواصل والدعم مطلوب وبصيغة صحيحة.' : 'A valid Contact / Support Email is required.'));
+      if (!companyEmail || !isValidEmail(companyEmail)) {
+        setError(t.authErrorContactEmailReq || (isArabic ? 'بريد التواصل والدعم مطلوب وبصيغة صحيحة (user@domain.com).' : 'A valid Contact / Support Email is required (user@domain.com).'));
         return;
       }
 
@@ -197,12 +235,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setLoading(true);
       try {
         const payload: RegisterPayload = {
-          email: email.trim(),
+          email: email.trim().toLowerCase(),
           passwordPlain: password,
           companyName: companyName.trim(),
           companyAddress: companyAddress.trim(),
           companyWebsite: companyWebsite.trim(),
-          companyEmail: companyEmail.trim(),
+          companyEmail: companyEmail.trim().toLowerCase(),
           defaultPaymentTerms: defaultPaymentTerms.trim(),
           companyLogo,
           agreedToPrivacyPolicy: agreedPolicy
@@ -210,15 +248,142 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         const res = await StorageService.registerUser(payload);
         setLoading(false);
-        if (!res.success || !res.user) {
+
+        if (!res.success) {
           setError(res.error || (isArabic ? 'حدث خطأ أثناء إنشاء الحساب.' : 'Failed to create account.'));
           return;
         }
-        onSuccess(res.user);
+
+        // Email confirmation is required by Supabase: transition to OTP verification modal
+        if (res.requiresVerification || !res.user) {
+          setPendingRegisterPayload(payload);
+          setVerificationEmail(payload.email);
+          setOtpDigits(['', '', '', '', '', '']);
+          setStep('verify');
+          setResendCooldown(60);
+          setError(null);
+          return;
+        }
+
+        // Direct session fallback if confirmation is inactive
+        if (res.user) {
+          onSuccess(res.user);
+        }
       } catch (err: any) {
         setLoading(false);
         setError(err.message || (isArabic ? 'حدث خطأ أثناء إنشاء الحساب.' : 'Failed to create account.'));
       }
+    }
+  };
+
+  // Handle individual digit change in OTP
+  const handleOtpDigitChange = (index: number, val: string) => {
+    // Check for paste of full 6 digits into any box
+    const digitsOnly = val.replace(/\D/g, '');
+    if (digitsOnly.length > 1) {
+      const newDigits = [...otpDigits];
+      for (let i = 0; i < 6 && i < digitsOnly.length; i++) {
+        newDigits[i] = digitsOnly[i];
+      }
+      setOtpDigits(newDigits);
+      const nextIndex = Math.min(digitsOnly.length, 5);
+      otpInputRefs.current[nextIndex]?.focus();
+      return;
+    }
+
+    const singleDigit = digitsOnly.slice(-1);
+    const newDigits = [...otpDigits];
+    newDigits[index] = singleDigit;
+    setOtpDigits(newDigits);
+
+    if (singleDigit && index < 5) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  // Handle backspace navigation in OTP
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace') {
+      if (!otpDigits[index] && index > 0) {
+        otpInputRefs.current[index - 1]?.focus();
+      }
+    } else if (e.key === 'ArrowLeft' && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
+    } else if (e.key === 'ArrowRight' && index < 5) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  // Handle full paste into OTP inputs
+  const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text');
+    const digits = pastedData.replace(/\D/g, '').slice(0, 6);
+    if (!digits) return;
+
+    const newDigits = [...otpDigits];
+    for (let i = 0; i < 6; i++) {
+      newDigits[i] = digits[i] || '';
+    }
+    setOtpDigits(newDigits);
+    const focusIndex = Math.min(digits.length, 5);
+    otpInputRefs.current[focusIndex]?.focus();
+  };
+
+  // Handle verify OTP submission
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setResendNotice(null);
+
+    const token = otpDigits.join('').trim();
+    if (token.length !== 6) {
+      setError(t.invalidOtpError || (isArabic ? 'يرجى إدخال جميع أرقام رمز التحقق الستة.' : 'Please enter all 6 digits of the verification code.'));
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await StorageService.verifyOtpAndCompleteRegistration(
+        verificationEmail,
+        token,
+        pendingRegisterPayload || undefined
+      );
+
+      setLoading(false);
+      if (!res.success || !res.user) {
+        setError(res.error || (isArabic ? 'رمز التحقق غير صحيح أو انتهت صلاحيته.' : 'Invalid or expired verification code.'));
+        return;
+      }
+
+      onSuccess(res.user);
+    } catch (err: any) {
+      setLoading(false);
+      setError(err.message || (isArabic ? 'فشل التحقق من الرمز. يرجى المحاولة مجددًا.' : 'Verification failed. Please try again.'));
+    }
+  };
+
+  // Handle resend OTP code
+  const handleResendCode = async () => {
+    if (resendCooldown > 0 || resendLoading) return;
+    setError(null);
+    setResendNotice(null);
+    setResendLoading(true);
+
+    try {
+      const res = await StorageService.resendVerificationCode(verificationEmail);
+      setResendLoading(false);
+
+      if (!res.success) {
+        setError(res.error || (isArabic ? 'تعذر إعادة إرسال الرمز حالياً.' : 'Unable to resend code right now.'));
+        return;
+      }
+
+      setResendCooldown(60);
+      setResendNotice(t.codeResentNotice || (isArabic ? 'تم إرسال رمز تحقق جديد بنجاح إلى بريدك الإلكتروني.' : 'A new verification code has been sent to your email.'));
+    } catch (err: any) {
+      setResendLoading(false);
+      setError(err.message || (isArabic ? 'تعذر إعادة إرسال الرمز.' : 'Failed to resend code.'));
     }
   };
 
@@ -229,45 +394,51 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     >
       <div 
         id="auth-modal-card"
-        className={`spotlight-card w-full ${tab === 'signup' ? 'max-w-2xl my-6' : 'max-w-md'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden transition-all duration-300 max-h-[92vh] flex flex-col`}
+        className={`spotlight-card w-full ${step === 'verify' ? 'max-w-md' : tab === 'signup' ? 'max-w-2xl my-6' : 'max-w-md'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden transition-all duration-300 max-h-[92vh] flex flex-col`}
       >
         {/* Header branding */}
         <div className="bg-gradient-to-br from-[#0F284E] via-[#1E3A8A] to-[#2563EB] p-6 sm:p-7 text-white text-center relative shrink-0">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 mb-2.5 shadow-inner">
-            <span className="text-2xl font-black tracking-wider text-sky-300">W</span>
+            {step === 'verify' ? (
+              <KeyRound className="w-6 h-6 text-sky-300 animate-pulse" />
+            ) : (
+              <span className="text-2xl font-black tracking-wider text-sky-300">W</span>
+            )}
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight">WISCO</h1>
           <p className="text-xs text-sky-200 mt-0.5 font-medium">
             {t.appTagline}
           </p>
 
-          {/* Tab Selector */}
-          <div className="mt-5 flex bg-black/20 p-1 rounded-xl backdrop-blur-sm border border-white/10 max-w-sm mx-auto">
-            <button
-              id="tab-btn-signin"
-              type="button"
-              onClick={() => { setTab('signin'); setError(null); }}
-              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                tab === 'signin' 
-                  ? 'bg-white text-[#0F284E] shadow-md' 
-                  : 'text-white/80 hover:text-white'
-              }`}
-            >
-              {t.signIn}
-            </button>
-            <button
-              id="tab-btn-signup"
-              type="button"
-              onClick={() => { setTab('signup'); setError(null); }}
-              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                tab === 'signup' 
-                  ? 'bg-white text-[#0F284E] shadow-md' 
-                  : 'text-white/80 hover:text-white'
-              }`}
-            >
-              {t.signUp}
-            </button>
-          </div>
+          {/* Tab Selector (Hidden during OTP step) */}
+          {step === 'form' && (
+            <div className="mt-5 flex bg-black/20 p-1 rounded-xl backdrop-blur-sm border border-white/10 max-w-sm mx-auto">
+              <button
+                id="tab-btn-signin"
+                type="button"
+                onClick={() => { setTab('signin'); setError(null); }}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  tab === 'signin' 
+                    ? 'bg-white text-[#0F284E] shadow-md' 
+                    : 'text-white/80 hover:text-white'
+                }`}
+              >
+                {t.signIn}
+              </button>
+              <button
+                id="tab-btn-signup"
+                type="button"
+                onClick={() => { setTab('signup'); setError(null); }}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  tab === 'signup' 
+                    ? 'bg-white text-[#0F284E] shadow-md' 
+                    : 'text-white/80 hover:text-white'
+                }`}
+              >
+                {t.signUp}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Scrollable Form Body */}
@@ -281,6 +452,128 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <span>{error}</span>
             </div>
           )}
+
+          {resendNotice && (
+            <div 
+              id="auth-resend-banner"
+              className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 rounded-xl text-xs text-emerald-700 dark:text-emerald-300 flex items-start gap-2.5"
+            >
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{resendNotice}</span>
+            </div>
+          )}
+
+          {/* STEP 2: 6-DIGIT OTP VERIFICATION SCREEN */}
+          {step === 'verify' ? (
+            <form onSubmit={handleVerifyOtp} className="space-y-6">
+              <div className="text-center space-y-2">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/60 rounded-full text-xs font-semibold text-blue-700 dark:text-sky-300">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>{t.emailVerificationTitle}</span>
+                </div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  {t.emailVerificationTitle}
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-sm mx-auto">
+                  {t.emailVerificationSub}{' '}
+                  <span className="font-semibold text-slate-900 dark:text-white underline decoration-blue-500 underline-offset-2">
+                    {verificationEmail}
+                  </span>
+                </p>
+              </div>
+
+              {/* 6-Digit Numeric Inputs */}
+              <div className="space-y-2">
+                <label className="block text-center text-xs font-semibold text-slate-600 dark:text-slate-300">
+                  {t.enterOtpPrompt}
+                </label>
+                
+                <div 
+                  id="otp-input-group"
+                  dir="ltr"
+                  className="flex items-center justify-center gap-2 sm:gap-2.5 pt-1"
+                >
+                  {otpDigits.map((digit, idx) => (
+                    <input
+                      key={idx}
+                      ref={(el) => (otpInputRefs.current[idx] = el)}
+                      id={`otp-input-${idx}`}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleOtpDigitChange(idx, e.target.value)}
+                      onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                      onPaste={handleOtpPaste}
+                      autoComplete="one-time-code"
+                      className="w-11 h-13 sm:w-12 sm:h-14 text-center text-xl sm:text-2xl font-mono font-extrabold text-[#0F284E] dark:text-sky-300 bg-slate-50 dark:bg-slate-800/90 border-2 border-slate-200 dark:border-slate-700 rounded-xl focus:border-blue-600 dark:focus:border-sky-400 focus:ring-4 focus:ring-blue-500/20 shadow-inner transition-all outline-none"
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Verify Button */}
+              <button
+                id="btn-verify-otp-submit"
+                type="submit"
+                disabled={loading}
+                className="w-full py-3.5 px-4 bg-gradient-to-r from-[#0F284E] via-[#1E3A8A] to-[#2563EB] hover:from-[#1E3A8A] hover:to-[#1D4ED8] text-white font-bold text-sm rounded-xl shadow-lg hover:shadow-xl hover:shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>{t.verifyingCode}</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{t.verifyAndCompleteBtn}</span>
+                  </>
+                )}
+              </button>
+
+              {/* Resend & Back options */}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1">
+                  <span>{isArabic ? 'لم يصلك الرمز؟' : "Didn't receive the code?"}</span>
+                  
+                  {resendCooldown > 0 ? (
+                    <span className="font-semibold text-slate-400 dark:text-slate-500">
+                      {t.resendCooldown} {resendCooldown}{t.seconds}
+                    </span>
+                  ) : (
+                    <button
+                      id="btn-resend-otp"
+                      type="button"
+                      disabled={resendLoading}
+                      onClick={handleResendCode}
+                      className="font-bold text-blue-600 dark:text-sky-400 hover:text-blue-700 dark:hover:text-sky-300 flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-colors"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${resendLoading ? 'animate-spin' : ''}`} />
+                      <span>{resendLoading ? t.resendingCode : t.resendCodeBtn}</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="text-center">
+                  <button
+                    id="btn-back-to-signup"
+                    type="button"
+                    onClick={() => {
+                      setStep('form');
+                      setError(null);
+                      setResendNotice(null);
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors cursor-pointer font-medium"
+                  >
+                    {isArabic ? <ArrowRight className="w-3.5 h-3.5" /> : <ArrowLeft className="w-3.5 h-3.5" />}
+                    <span>{t.backToSignUp}</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          ) : (
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* SIGN IN VIEW */}
@@ -618,6 +911,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               )}
             </button>
           </form>
+          )}
 
           <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 pt-3 border-t border-slate-100 dark:border-slate-800">
             <Shield className="w-3.5 h-3.5 text-emerald-500" />
