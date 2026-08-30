@@ -5,8 +5,7 @@ import {
   ReceiptText, 
   Wallet, 
   FileSpreadsheet, 
-  ShieldCheck, 
-  Building
+  ShieldCheck 
 } from 'lucide-react';
 import { NavTab, LanguageCode, UserProfile, CurrencyCode } from '../types';
 import { TRANSLATIONS } from '../constants/translations';
@@ -16,7 +15,7 @@ interface SidebarProps {
   currentTab: NavTab;
   onSelectTab: (tab: NavTab) => void;
   lang: LanguageCode;
-  user: UserProfile | null;
+  user?: UserProfile | null;
   onOpenPrivacyPolicy: () => void;
   totalRevenue: number;
   currency: CurrencyCode;
@@ -26,7 +25,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentTab,
   onSelectTab,
   lang,
-  user,
   onOpenPrivacyPolicy,
   totalRevenue,
   currency
@@ -34,7 +32,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
   const isArabic = lang === 'ar';
 
-  const navItems: { id: NavTab; label: string; icon: React.ReactNode; badge?: string }[] = [
+  const navItems: { id: NavTab; label: string; icon: React.ReactNode }[] = [
     { id: 'dashboard', label: t.dashboard, icon: <LayoutDashboard className="w-5 h-5" /> },
     { id: 'clients', label: t.clients, icon: <Users className="w-5 h-5" /> },
     { id: 'invoices', label: t.invoices, icon: <ReceiptText className="w-5 h-5" /> },
@@ -76,7 +74,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Navigation Links (Account tab removed) */}
+      {/* Navigation Links */}
       <nav className="flex-1 px-4 space-y-2 overflow-y-auto py-2">
         {navItems.map((item) => {
           const active = currentTab === item.id;
@@ -101,41 +99,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       {/* Footer Info & Privacy */}
-      <div className="p-4 border-t border-white/10 bg-black/20 space-y-3">
-        {/* Privacy policy trigger */}
+      <div className="p-4 border-t border-white/10 bg-black/20 mt-auto">
         <button
           id="sidebar-btn-privacy-policy"
+          type="button"
           onClick={onOpenPrivacyPolicy}
-          className="w-full flex items-center justify-between px-3 py-2 text-xs text-slate-400 hover:text-sky-300 hover:bg-white/5 rounded-lg transition-colors cursor-pointer"
+          className="w-full flex items-center justify-between px-3 py-2 text-xs text-slate-400 hover:text-sky-300 hover:bg-white/5 rounded-xl transition-colors cursor-pointer"
         >
           <span className="flex items-center gap-2">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>{t.readPrivacyPolicy}</span>
+            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span className="font-medium">{t.readPrivacyPolicy}</span>
           </span>
-          <span className="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400">
+          <span className="text-[10px] font-semibold bg-white/10 px-2 py-0.5 rounded-md text-slate-300 border border-white/5">
             Whislly
           </span>
-        </button>
-
-        {/* User Card linking directly to Account tab */}
-        <button
-          id="sidebar-user-account-btn"
-          type="button"
-          onClick={() => onSelectTab('account')}
-          className="w-full flex items-center gap-2.5 p-2 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10 transition-all text-left rtl:text-right cursor-pointer group"
-          title={lang === 'ar' ? 'إعدادات الحساب' : 'Account Settings'}
-        >
-          <div className="w-8 h-8 rounded-lg bg-blue-500/30 border border-blue-400/40 text-blue-300 group-hover:bg-blue-600 group-hover:text-white flex items-center justify-center font-bold text-xs shrink-0 transition-colors">
-            {user?.displayName ? user.displayName.charAt(0).toUpperCase() : 'W'}
-          </div>
-          <div className="overflow-hidden flex-1">
-            <div className="text-xs font-bold text-white group-hover:text-sky-300 transition-colors truncate">
-              {user?.displayName || 'Whislly Admin'}
-            </div>
-            <div className="text-[10px] text-slate-400 truncate">
-              {user?.email || 'Active Session'}
-            </div>
-          </div>
         </button>
       </div>
     </aside>
