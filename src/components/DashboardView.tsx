@@ -12,7 +12,8 @@ import {
   DollarSign, 
   Building2,
   PieChart as PieIcon,
-  BarChart3
+  BarChart3,
+  RefreshCw
 } from 'lucide-react';
 import { Chart, registerables } from 'chart.js';
 import { ClientProject, Invoice, Spending, CurrencyCode, LanguageCode, NavTab, ActivityLog } from '../types';
@@ -29,6 +30,8 @@ interface DashboardViewProps {
   currency: CurrencyCode;
   lang: LanguageCode;
   darkMode?: boolean;
+  isSyncing?: boolean;
+  onRefresh?: () => void;
   onNavigate: (tab: NavTab) => void;
   onAddClient?: () => void;
   onOpenAddClient?: () => void;
@@ -43,6 +46,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   currency,
   lang,
   darkMode = false,
+  isSyncing = false,
+  onRefresh,
   onNavigate,
   onAddClient,
   onOpenAddClient,
@@ -269,6 +274,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         <div className="relative z-10 flex flex-wrap items-center gap-3">
+          {onRefresh && (
+            <button
+              id="dash-btn-refresh-data"
+              onClick={onRefresh}
+              disabled={isSyncing}
+              title={isArabic ? 'تحديث البيانات من Supabase' : 'Refresh live data from Supabase'}
+              className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl border border-white/20 backdrop-blur-sm transition-all flex items-center justify-center cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin text-sky-300' : ''}`} />
+            </button>
+          )}
           <button
             id="dash-btn-add-client"
             onClick={handleAddClientAction}

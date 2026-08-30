@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   TabType, 
   ClientProject, 
@@ -14,8 +14,9 @@ import {
   InvoiceStatus 
 } from './types';
 import { StorageService } from './services/storage';
-import { supabase } from './services/supabase';
+import { supabase, SupabaseService } from './services/supabase';
 import { TRANSLATIONS } from './constants/translations';
+import { CheckCircle2, AlertCircle, RefreshCw, Loader2, CloudCheck, Cloud } from 'lucide-react';
 
 // Components
 import { Sidebar } from './components/Sidebar';
@@ -43,8 +44,20 @@ export default function App() {
   const [invoices, setInvoices] = useState<Invoice[]>(() => StorageService.getInvoices());
   const [spendings, setSpendings] = useState<Spending[]>(() => StorageService.getSpendings());
 
+  // Loading & Sync States
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast((curr) => (curr?.message === message ? null : curr));
+    }, 4000);
+  }, []);
+
   // 2. Modals state
-  const [authModalOpen, setAuthModalOpen] = useState<boolean>(() => !StorageService.getUser());
+  const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
   const [privacyPolicyOpen, setPrivacyPolicyOpen] = useState<boolean>(false);
   
   const [clientModalOpen, setClientModalOpen] = useState<boolean>(false);
@@ -99,48 +112,150 @@ export default function App() {
     return () => window.removeEventListener('mousemove', handlePointerMove);
   }, []);
 
-  // 3c. Supabase Session Lifecycle & Real-Time Sync
-  useEffect(() => {
-    // Check active session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        const uid = session.user.id;
-        StorageService.syncFromSupabase(uid).then((res) => {
-          setClients(res.clients);
-          setInvoices(res.invoices);
-          setSpendings(res.spendings);
-          setSettings(res.settings);
+  // Fetch all data directly from Supabase database using authenticated user's ID
+  const fetchSupabaseData = useCallback(async (targetUid: string) => {
+    setIsSyncing(true);
+    try {
+      const [dbClients, dbInvoices, dbSpendings, profileAndSettings] = await Promise.all([
+        SupabaseService.fetchClients(targetUid),
+        SupabaseService.fetchInvoices(targetUid),
+        SupabaseService.fetchSpendings(targetUid),
+        SupabaseService.fetchProfileAndSettings(targetUid)
+      ]);
+
+      setClients(dbClients);
+      setInvoices(dbInvoices);
+      setSpendings(dbSpendings);
+
+      // Keep local storage synchronized for instant fast paint on future loads
+      StorageService.saveClients(dbClients, targetUid);
+      StorageService.saveInvoices(dbInvoices, targetUid);
+      StorageService.saveSpendings(dbSpendings, targetUid);
+
+      if (profileAndSettings.settings) {
+        setSettings(prev => {
+          const merged = { ...prev, ...profileAndSettings.settings };
+          StorageService.saveSettings(profileAndSettings.settings, targetUid);
+          return merged;
         });
       }
-    });
+
+      if (profileAndSettings.profile) {
+        setUser(profileAndSettings.profile);
+        StorageService.setUser(profileAndSettings.profile);
+      }
+    } catch (err) {
+      console.warn('Supabase fetch error:', err);
+    } finally {
+      setIsSyncing(false);
+      setIsLoading(false);
+    }
+  }, []);
+
+  // 3c. Supabase Session Lifecycle & Initial Fetch on Mount
+  useEffect(() => {
+    let isMounted = true;
+
+    async function initializeSessionAndData() {
+      setIsLoading(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+          const uid = session.user.id;
+          
+          // Build or retrieve user profile
+          let userProfile: UserProfile = {
+            uid,
+            email: session.user.email || '',
+            displayName: session.user.user_metadata?.company_name || session.user.email?.split('@')[0] || 'Partner',
+            companyName: session.user.user_metadata?.company_name || 'Whislly Partner',
+            companyAddress: session.user.user_metadata?.company_address || 'Amman, Jordan',
+            companyWebsite: session.user.user_metadata?.company_website || 'www.company.com',
+            companyEmail: session.user.user_metadata?.company_email || session.user.email || '',
+            companyLogo: session.user.user_metadata?.company_logo || '',
+            defaultPaymentTerms: session.user.user_metadata?.default_payment_terms || 'Payment due within 30 days of invoice date.',
+            createdAt: session.user.created_at || new Date().toISOString(),
+            agreedToPrivacyPolicy: true
+          };
+
+          const profileRes = await SupabaseService.fetchProfileAndSettings(uid);
+          if (profileRes.profile) {
+            userProfile = { ...userProfile, ...profileRes.profile };
+          }
+
+          if (isMounted) {
+            setUser(userProfile);
+            StorageService.setUser(userProfile);
+            setAuthModalOpen(false);
+          }
+
+          await fetchSupabaseData(uid);
+        } else {
+          // If no active auth session, load from local storage
+          const localUser = StorageService.getUser();
+          if (isMounted) {
+            if (localUser) {
+              setUser(localUser);
+              setClients(StorageService.getClients(localUser.uid));
+              setInvoices(StorageService.getInvoices(localUser.uid));
+              setSpendings(StorageService.getSpendings(localUser.uid));
+              setSettings(StorageService.getSettings(localUser.uid));
+            } else {
+              setClients(StorageService.getClients(null));
+              setInvoices(StorageService.getInvoices(null));
+              setSpendings(StorageService.getSpendings(null));
+              setSettings(StorageService.getSettings(null));
+            }
+            setIsLoading(false);
+          }
+        }
+      } catch (err) {
+        console.error('Session initialization error:', err);
+        if (isMounted) setIsLoading(false);
+      }
+    }
+
+    initializeSessionAndData();
 
     // Listen to Supabase auth events
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
+      if (session?.user) {
         const uid = session.user.id;
-        const res = await StorageService.syncFromSupabase(uid);
-        setClients(res.clients);
-        setInvoices(res.invoices);
-        setSpendings(res.spendings);
-        setSettings(res.settings);
+        if (isMounted) {
+          await fetchSupabaseData(uid);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        if (isMounted) {
+          setUser(null);
+          setClients([]);
+          setInvoices([]);
+          setSpendings([]);
+          setAuthModalOpen(true);
+        }
       }
     });
 
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [fetchSupabaseData]);
 
   // Sync state helper
-  const reloadData = (uid?: string | null) => {
+  const reloadData = async (uid?: string | null) => {
     const effectiveUid = uid !== undefined ? uid : user?.uid;
-    setClients(StorageService.getClients(effectiveUid));
-    setInvoices(StorageService.getInvoices(effectiveUid));
-    setSpendings(StorageService.getSpendings(effectiveUid));
-    setSettings(StorageService.getSettings(effectiveUid));
+    if (effectiveUid) {
+      await fetchSupabaseData(effectiveUid);
+    } else {
+      setClients(StorageService.getClients(null));
+      setInvoices(StorageService.getInvoices(null));
+      setSpendings(StorageService.getSpendings(null));
+      setSettings(StorageService.getSettings(null));
+    }
   };
 
-  // 4. Client Handlers
+  // 4. Client Handlers with Direct Supabase Persistence
   const handleOpenAddClient = () => {
     setEditingClient(null);
     setClientModalOpen(true);
@@ -151,9 +266,49 @@ export default function App() {
     setClientModalOpen(true);
   };
 
-  const handleSaveClient = (clientData: Omit<ClientProject, 'id' | 'createdAt'>, existingId?: string) => {
-    StorageService.saveClient(clientData, existingId, user?.uid);
-    reloadData(user?.uid);
+  const handleSaveClient = async (clientData: Omit<ClientProject, 'id' | 'createdAt'>, existingId?: string) => {
+    try {
+      setIsSyncing(true);
+      const sessionRes = await supabase.auth.getSession();
+      const targetUid = user?.uid || sessionRes.data.session?.user?.id || null;
+
+      // 1. Optimistic & Local Storage Update
+      const savedClient = await StorageService.saveClient(clientData, existingId, targetUid);
+      setClients(StorageService.getClients(targetUid));
+      setInvoices(StorageService.getInvoices(targetUid));
+
+      // 2. Direct Supabase Database Persistence
+      if (targetUid) {
+        const insertSuccess = await SupabaseService.upsertClient(savedClient, targetUid);
+        
+        // Persist auto-generated invoice as well
+        const allInvs = StorageService.getInvoices(targetUid);
+        const relatedInv = allInvs.find(i => i.clientId === savedClient.id);
+        if (relatedInv) {
+          await SupabaseService.upsertInvoice(relatedInv, targetUid);
+        }
+
+        if (insertSuccess) {
+          showToast(
+            settings.language === 'ar' ? 'تم حفظ المشروع ومزامنته مع Supabase بنجاح' : 'Client project saved and synced to Supabase',
+            'success'
+          );
+        }
+      } else {
+        showToast(
+          settings.language === 'ar' ? 'تم الحفظ محلياً' : 'Saved locally',
+          'info'
+        );
+      }
+    } catch (err: any) {
+      console.error('Error saving client:', err);
+      showToast(
+        settings.language === 'ar' ? 'حدث خطأ أثناء حفظ المشروع' : 'Error saving client project',
+        'error'
+      );
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleDeleteClient = (client: ClientProject) => {
@@ -164,9 +319,22 @@ export default function App() {
       message: isAr
         ? `هل أنت متأكد من حذف "${client.name} - ${client.project}"؟ سيتم حذف الفواتير المرتبطة أيضًا.`
         : `Are you sure you want to remove "${client.name} - ${client.project}"? This will also remove the associated invoice.`,
-      onConfirm: () => {
-        StorageService.deleteClient(client.id, user?.uid);
-        reloadData(user?.uid);
+      onConfirm: async () => {
+        try {
+          setIsSyncing(true);
+          const targetUid = user?.uid;
+          await StorageService.deleteClient(client.id, targetUid);
+          setClients(StorageService.getClients(targetUid));
+          setInvoices(StorageService.getInvoices(targetUid));
+          showToast(
+            settings.language === 'ar' ? 'تم حذف المشروع بنجاح' : 'Client project deleted',
+            'info'
+          );
+        } catch (err) {
+          console.error('Delete client error:', err);
+        } finally {
+          setIsSyncing(false);
+        }
       }
     });
   };
@@ -187,15 +355,27 @@ export default function App() {
     setInvoiceModalOpen(true);
   };
 
-  const handleUpdateInvoiceStatus = (invoiceId: string, status: InvoiceStatus) => {
-    StorageService.updateInvoiceStatus(invoiceId, status, user?.uid);
-    reloadData(user?.uid);
-    if (selectedInvoice && selectedInvoice.id === invoiceId) {
-      setSelectedInvoice(prev => prev ? { ...prev, status } : null);
+  const handleUpdateInvoiceStatus = async (invoiceId: string, status: InvoiceStatus) => {
+    try {
+      setIsSyncing(true);
+      const targetUid = user?.uid;
+      await StorageService.updateInvoiceStatus(invoiceId, status, targetUid);
+      setInvoices(StorageService.getInvoices(targetUid));
+      if (selectedInvoice && selectedInvoice.id === invoiceId) {
+        setSelectedInvoice(prev => prev ? { ...prev, status } : null);
+      }
+      showToast(
+        settings.language === 'ar' ? `تم تحديث حالة الفاتورة إلى: ${status}` : `Invoice status updated to ${status}`,
+        'success'
+      );
+    } catch (err) {
+      console.error('Update invoice error:', err);
+    } finally {
+      setIsSyncing(false);
     }
   };
 
-  // 6. Spending Handlers
+  // 6. Spending Handlers with Direct Supabase Persistence
   const handleOpenAddSpending = () => {
     setEditingSpending(null);
     setSpendingModalOpen(true);
@@ -206,9 +386,40 @@ export default function App() {
     setSpendingModalOpen(true);
   };
 
-  const handleSaveSpending = (spendingData: Omit<Spending, 'id' | 'createdAt'>, existingId?: string) => {
-    StorageService.saveSpending(spendingData, existingId, user?.uid);
-    reloadData(user?.uid);
+  const handleSaveSpending = async (spendingData: Omit<Spending, 'id' | 'createdAt'>, existingId?: string) => {
+    try {
+      setIsSyncing(true);
+      const sessionRes = await supabase.auth.getSession();
+      const targetUid = user?.uid || sessionRes.data.session?.user?.id || null;
+
+      // 1. Optimistic & Local Storage Update
+      const savedSpending = await StorageService.saveSpending(spendingData, existingId, targetUid);
+      setSpendings(StorageService.getSpendings(targetUid));
+
+      // 2. Direct Supabase Database Persistence
+      if (targetUid) {
+        const insertSuccess = await SupabaseService.upsertSpending(savedSpending, targetUid);
+        if (insertSuccess) {
+          showToast(
+            settings.language === 'ar' ? 'تم حفظ المصروف ومزامنته مع Supabase بنجاح' : 'Spending expense saved and synced to Supabase',
+            'success'
+          );
+        }
+      } else {
+        showToast(
+          settings.language === 'ar' ? 'تم الحفظ محلياً' : 'Saved locally',
+          'info'
+        );
+      }
+    } catch (err: any) {
+      console.error('Error saving spending:', err);
+      showToast(
+        settings.language === 'ar' ? 'حدث خطأ أثناء حفظ المصروف' : 'Error saving spending',
+        'error'
+      );
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleDeleteSpending = (spending: Spending) => {
@@ -219,36 +430,52 @@ export default function App() {
       message: isAr
         ? `هل أنت متأكد من حذف مصروف "${spending.item}" بقيمة ${spending.amount}؟`
         : `Are you sure you want to delete "${spending.item}" ($${spending.amount})?`,
-      onConfirm: () => {
-        StorageService.deleteSpending(spending.id, user?.uid);
-        reloadData(user?.uid);
+      onConfirm: async () => {
+        try {
+          setIsSyncing(true);
+          const targetUid = user?.uid;
+          await StorageService.deleteSpending(spending.id, targetUid);
+          setSpendings(StorageService.getSpendings(targetUid));
+          showToast(
+            settings.language === 'ar' ? 'تم حذف المصروف بنجاح' : 'Spending expense deleted',
+            'info'
+          );
+        } catch (err) {
+          console.error('Delete spending error:', err);
+        } finally {
+          setIsSyncing(false);
+        }
       }
     });
   };
 
   // 7. Account & Settings Handlers
-  const handleUpdateSettings = (newSettings: Partial<AppSettings>) => {
+  const handleUpdateSettings = async (newSettings: Partial<AppSettings>) => {
     const updated = StorageService.saveSettings(newSettings, user?.uid);
     setSettings(updated);
+    const freshUser = StorageService.getUser();
+    if (freshUser) {
+      setUser(freshUser);
+    }
+    showToast(
+      settings.language === 'ar' ? 'تم حفظ الإعدادات ومعلومات الوكالة بنجاح' : 'Agency settings updated successfully',
+      'success'
+    );
   };
 
-  const handleAuthSuccess = (authenticatedUser: UserProfile) => {
+  const handleAuthSuccess = async (authenticatedUser: UserProfile) => {
     setUser(authenticatedUser);
-    // Load fresh isolated data for this authenticated user
-    setClients(StorageService.getClients(authenticatedUser.uid));
-    setInvoices(StorageService.getInvoices(authenticatedUser.uid));
-    setSpendings(StorageService.getSpendings(authenticatedUser.uid));
-    setSettings(StorageService.getSettings(authenticatedUser.uid));
-    setSelectedInvoice(null);
-    setEditingClient(null);
-    setEditingSpending(null);
     setAuthModalOpen(false);
+    await fetchSupabaseData(authenticatedUser.uid);
+    showToast(
+      settings.language === 'ar' ? `مرحباً بك، ${authenticatedUser.companyName || authenticatedUser.displayName}` : `Welcome back, ${authenticatedUser.companyName || authenticatedUser.displayName}`,
+      'success'
+    );
   };
 
   // Strict session & memory clearing on sign out
-  const handleSignOut = () => {
-    StorageService.signOut();
-    // Clear all React UI and memory state
+  const handleSignOut = async () => {
+    await StorageService.signOut();
     setUser(null);
     setClients([]);
     setInvoices([]);
@@ -266,11 +493,11 @@ export default function App() {
       isOpen: true,
       title: isAr ? 'حذف الحساب والبيانات نهائياً' : 'Permanently Delete Account & Data',
       message: isAr
-        ? 'بموجب البند 6 من سياسة الخصوصية، سيتم مسح جميع بياناتك وسجلاتك المالية ومشاريعك نهائياً من الذاكرة.'
-        : 'In accordance with Section 6 of the Privacy Policy (Data Retention & Deletion), all your clients, invoices, spendings, and profile credentials will be permanently erased.',
-      onConfirm: () => {
-        StorageService.deleteAccountAndWipeAllData(user?.uid);
-        // Clear all memory state
+        ? 'بموجب البند 6 من سياسة الخصوصية، سيتم مسح جميع بياناتك وسجلاتك المالية ومشاريعك نهائياً من قاعدة البيانات والذاكرة.'
+        : 'In accordance with Section 6 of the Privacy Policy, all your clients, invoices, spendings, and profile credentials will be permanently erased from Supabase and memory.',
+      onConfirm: async () => {
+        setIsSyncing(true);
+        await StorageService.deleteAccountAndWipeAllData(user?.uid);
         setUser(null);
         setClients([]);
         setInvoices([]);
@@ -278,6 +505,7 @@ export default function App() {
         setSelectedInvoice(null);
         setEditingClient(null);
         setEditingSpending(null);
+        setIsSyncing(false);
         setAuthModalOpen(true);
       }
     });
@@ -288,6 +516,25 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#F1F5F9] dark:bg-[#071326] text-slate-800 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200 selection:bg-blue-600 selection:text-white">
+      {/* Toast Notification */}
+      {toast && (
+        <div 
+          id="global-toast-notification"
+          className={`fixed top-5 right-5 z-50 px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-md border flex items-center gap-3 transition-all animate-bounce duration-300 text-sm font-medium ${
+            toast.type === 'success' 
+              ? 'bg-emerald-900/90 border-emerald-500/40 text-emerald-100' 
+              : toast.type === 'error'
+              ? 'bg-rose-900/90 border-rose-500/40 text-rose-100'
+              : 'bg-slate-900/90 border-slate-700 text-slate-100'
+          }`}
+        >
+          {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />}
+          {toast.type === 'error' && <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />}
+          {toast.type === 'info' && <RefreshCw className="w-5 h-5 text-sky-400 shrink-0 animate-spin" />}
+          <span>{toast.message}</span>
+        </div>
+      )}
+
       {/* Top Navbar */}
       <Navbar
         currentTab={currentTab}
@@ -315,76 +562,90 @@ export default function App() {
 
         {/* Dynamic Tab Content Area */}
         <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 overflow-y-auto">
-          {currentTab === 'dashboard' && (
-            <DashboardView
-              clients={clients}
-              invoices={invoices}
-              spendings={spendings}
-              currency={settings.currency}
-              lang={settings.language}
-              onNavigate={setCurrentTab}
-              onAddClient={handleOpenAddClient}
-              onOpenAddClient={handleOpenAddClient}
-              onAddSpending={handleOpenAddSpending}
-              onOpenAddSpending={handleOpenAddSpending}
-            />
-          )}
+          {isLoading ? (
+            <div className="h-96 flex flex-col items-center justify-center gap-4 text-slate-500 dark:text-slate-400">
+              <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+              <p className="text-sm font-medium">
+                {settings.language === 'ar' ? 'جاري استرجاع البيانات من Supabase...' : 'Fetching live records from Supabase...'}
+              </p>
+            </div>
+          ) : (
+            <>
+              {currentTab === 'dashboard' && (
+                <DashboardView
+                  clients={clients}
+                  invoices={invoices}
+                  spendings={spendings}
+                  currency={settings.currency}
+                  lang={settings.language}
+                  darkMode={settings.darkMode}
+                  isSyncing={isSyncing}
+                  onRefresh={() => reloadData(user?.uid)}
+                  onNavigate={setCurrentTab}
+                  onAddClient={handleOpenAddClient}
+                  onOpenAddClient={handleOpenAddClient}
+                  onAddSpending={handleOpenAddSpending}
+                  onOpenAddSpending={handleOpenAddSpending}
+                />
+              )}
 
-          {currentTab === 'clients' && (
-            <ClientsView
-              clients={clients}
-              currency={settings.currency}
-              lang={settings.language}
-              onAddClient={handleOpenAddClient}
-              onEditClient={handleOpenEditClient}
-              onDeleteClient={handleDeleteClient}
-              onViewInvoice={handleViewInvoiceForClient}
-            />
-          )}
+              {currentTab === 'clients' && (
+                <ClientsView
+                  clients={clients}
+                  currency={settings.currency}
+                  lang={settings.language}
+                  onAddClient={handleOpenAddClient}
+                  onEditClient={handleOpenEditClient}
+                  onDeleteClient={handleDeleteClient}
+                  onViewInvoice={handleViewInvoiceForClient}
+                />
+              )}
 
-          {currentTab === 'invoices' && (
-            <InvoicesView
-              invoices={invoices}
-              currency={settings.currency}
-              lang={settings.language}
-              onViewInvoice={handleViewInvoice}
-              onUpdateStatus={handleUpdateInvoiceStatus}
-            />
-          )}
+              {currentTab === 'invoices' && (
+                <InvoicesView
+                  invoices={invoices}
+                  currency={settings.currency}
+                  lang={settings.language}
+                  onViewInvoice={handleViewInvoice}
+                  onUpdateStatus={handleUpdateInvoiceStatus}
+                />
+              )}
 
-          {currentTab === 'spendings' && (
-            <SpendingsView
-              spendings={spendings}
-              currency={settings.currency}
-              lang={settings.language}
-              onAddSpending={handleOpenAddSpending}
-              onEditSpending={handleOpenEditSpending}
-              onDeleteSpending={handleDeleteSpending}
-            />
-          )}
+              {currentTab === 'spendings' && (
+                <SpendingsView
+                  spendings={spendings}
+                  currency={settings.currency}
+                  lang={settings.language}
+                  onAddSpending={handleOpenAddSpending}
+                  onEditSpending={handleOpenEditSpending}
+                  onDeleteSpending={handleDeleteSpending}
+                />
+              )}
 
-          {currentTab === 'reports' && (
-            <ReportsView
-              clients={clients}
-              invoices={invoices}
-              spendings={spendings}
-              currency={settings.currency}
-              lang={settings.language}
-              settings={settings}
-            />
-          )}
+              {currentTab === 'reports' && (
+                <ReportsView
+                  clients={clients}
+                  invoices={invoices}
+                  spendings={spendings}
+                  currency={settings.currency}
+                  lang={settings.language}
+                  settings={settings}
+                />
+              )}
 
-          {currentTab === 'account' && (
-            <AccountView
-              user={user}
-              settings={settings}
-              onUpdateSettings={handleUpdateSettings}
-              onSignOut={handleSignOut}
-              onOpenPrivacyPolicy={() => setPrivacyPolicyOpen(true)}
-              onDeleteAccount={handleDeleteAccount}
-              onReloadAllData={reloadData}
-              lang={settings.language}
-            />
+              {currentTab === 'account' && (
+                <AccountView
+                  user={user}
+                  settings={settings}
+                  onUpdateSettings={handleUpdateSettings}
+                  onSignOut={handleSignOut}
+                  onOpenPrivacyPolicy={() => setPrivacyPolicyOpen(true)}
+                  onDeleteAccount={handleDeleteAccount}
+                  onReloadAllData={reloadData}
+                  lang={settings.language}
+                />
+              )}
+            </>
           )}
         </main>
       </div>
@@ -395,6 +656,17 @@ export default function App() {
           <span className="font-black text-[#0F284E] dark:text-sky-400">WISCO</span>
           <span>•</span>
           <span>Whislly Financial Engine (Amman, Jordan)</span>
+          {isSyncing ? (
+            <span className="inline-flex items-center gap-1 text-[11px] text-sky-600 dark:text-sky-400">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>{settings.language === 'ar' ? 'مزامنة...' : 'Syncing...'}</span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400">
+              <CloudCheck className="w-3 h-3" />
+              <span>{settings.language === 'ar' ? 'متصل بقاعدة البيانات' : 'Supabase Synced'}</span>
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-4 text-[11px]">

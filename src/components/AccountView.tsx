@@ -14,6 +14,7 @@ import {
   Building2, 
   Mail, 
   MapPin, 
+  Phone,
   Check, 
   AlertCircle,
   FileCheck,
@@ -21,10 +22,10 @@ import {
   ImagePlus,
   Trash,
   UploadCloud,
-  Lock,
   FileText,
   CheckCircle2,
-  Info
+  Sparkles,
+  Save
 } from 'lucide-react';
 import { AppSettings, CurrencyCode, LanguageCode, UserProfile } from '../types';
 import { TRANSLATIONS } from '../constants/translations';
@@ -57,13 +58,12 @@ export const AccountView: React.FC<AccountViewProps> = ({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Agency Profile Data (Locked Agency Information)
-  const lockedAgencyName = settings.companyName || user?.companyName || 'Whislly Partner';
-  const lockedLocation = settings.companyAddress || user?.companyAddress || 'Amman, Jordan';
-  const lockedWebsite = settings.companyWebsite || user?.companyWebsite || 'www.company.com';
-  const lockedContactEmail = settings.companyEmail || user?.companyEmail || user?.email || 'contact@agency.com';
-
-  // Editable Profile Exceptions
+  // Agency Profile Form State (Fully Editable)
+  const [agencyName, setAgencyName] = useState(settings.companyName || user?.companyName || '');
+  const [agencyAddress, setAgencyAddress] = useState(settings.companyAddress || user?.companyAddress || '');
+  const [agencyWebsite, setAgencyWebsite] = useState(settings.companyWebsite || user?.companyWebsite || '');
+  const [agencyEmail, setAgencyEmail] = useState(settings.companyEmail || user?.companyEmail || user?.email || '');
+  const [agencyPhone, setAgencyPhone] = useState(settings.companyPhone || '');
   const [companyLogo, setCompanyLogo] = useState(settings.companyLogo || user?.companyLogo || '');
   const [defaultPaymentTerms, setDefaultPaymentTerms] = useState(settings.defaultPaymentTerms || user?.defaultPaymentTerms || '');
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -72,9 +72,28 @@ export const AccountView: React.FC<AccountViewProps> = ({
 
   // Sync state if settings prop updates externally
   useEffect(() => {
+    setAgencyName(settings.companyName || user?.companyName || '');
+    setAgencyAddress(settings.companyAddress || user?.companyAddress || '');
+    setAgencyWebsite(settings.companyWebsite || user?.companyWebsite || '');
+    setAgencyEmail(settings.companyEmail || user?.companyEmail || user?.email || '');
+    setAgencyPhone(settings.companyPhone || '');
     setCompanyLogo(settings.companyLogo || user?.companyLogo || '');
     setDefaultPaymentTerms(settings.defaultPaymentTerms || user?.defaultPaymentTerms || '');
-  }, [settings.companyLogo, settings.defaultPaymentTerms, user?.companyLogo, user?.defaultPaymentTerms]);
+  }, [
+    settings.companyName, 
+    settings.companyAddress, 
+    settings.companyWebsite, 
+    settings.companyEmail, 
+    settings.companyPhone, 
+    settings.companyLogo, 
+    settings.defaultPaymentTerms, 
+    user?.companyName, 
+    user?.companyAddress, 
+    user?.companyWebsite, 
+    user?.companyEmail, 
+    user?.companyLogo, 
+    user?.defaultPaymentTerms
+  ]);
 
   const handleLogoUpload = (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -138,9 +157,15 @@ export const AccountView: React.FC<AccountViewProps> = ({
     setTimeout(() => setSaveSuccess(false), 2500);
   };
 
-  const handleSavePaymentTerms = (e: React.FormEvent) => {
+  const handleSaveAgencyProfile = (e: React.FormEvent) => {
     e.preventDefault();
     onUpdateSettings({
+      companyName: agencyName.trim() || 'Whislly Partner',
+      companyAddress: agencyAddress.trim(),
+      companyWebsite: agencyWebsite.trim(),
+      companyEmail: agencyEmail.trim(),
+      companyPhone: agencyPhone.trim(),
+      companyLogo,
       defaultPaymentTerms: defaultPaymentTerms.trim()
     });
     setSaveSuccess(true);
@@ -177,6 +202,8 @@ export const AccountView: React.FC<AccountViewProps> = ({
     reader.readAsText(file);
   };
 
+  const displayAgencyName = agencyName || settings.companyName || user?.companyName || 'Whislly Partner';
+
   return (
     <div id="account-view-root" className="space-y-6 pb-12 max-w-4xl mx-auto">
       {/* Top Banner */}
@@ -200,27 +227,27 @@ export const AccountView: React.FC<AccountViewProps> = ({
         </button>
       </div>
 
-      {/* User Profile Card */}
+      {/* User Profile Overview Card */}
       <div className="spotlight-card bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-400 mb-4">
           {t.userProfile}
         </h3>
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3.5">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-sky-400 text-white flex items-center justify-center font-black text-lg shadow-md shrink-0">
-              {lockedAgencyName ? lockedAgencyName.charAt(0).toUpperCase() : 'W'}
+              {displayAgencyName ? displayAgencyName.charAt(0).toUpperCase() : 'W'}
             </div>
             <div>
               <div className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <span>{lockedAgencyName}</span>
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-sky-300 border border-blue-200 dark:border-blue-900/50">
-                  <Lock className="w-2.5 h-2.5" />
-                  {t.lockedBadge || 'Locked Record'}
+                <span>{displayAgencyName}</span>
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/50">
+                  <CheckCircle2 className="w-2.5 h-2.5" />
+                  {isArabic ? 'حساب نشط' : 'Active Account'}
                 </span>
               </div>
               <div className="text-xs text-slate-500 dark:text-slate-400">
-                {user?.email || 'admin@agency.com'}
+                {user?.email || agencyEmail || 'admin@agency.com'}
               </div>
               <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
                 <FileCheck className="w-3 h-3" />
@@ -242,104 +269,123 @@ export const AccountView: React.FC<AccountViewProps> = ({
         </div>
       </div>
 
-      {/* Agency Billing Profile & Locked Details */}
-      <div className="spotlight-card bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      {/* Agency Billing Profile (Fully Editable Form) */}
+      <form 
+        id="form-agency-profile"
+        onSubmit={handleSaveAgencyProfile}
+        className="spotlight-card bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 pb-4">
           <div>
             <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-blue-600 dark:text-sky-400" />
               <span>{t.agencyProfileSettings}</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 flex items-center gap-1">
-                <Lock className="w-2.5 h-2.5" /> {isArabic ? 'بيانات مؤكدة ومقفلة' : 'Verified & Locked'}
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-sky-300 border border-blue-200 dark:border-blue-900/50 flex items-center gap-1">
+                <Sparkles className="w-2.5 h-2.5" /> {isArabic ? 'قابل للتعديل دائماً' : 'Fully Editable'}
               </span>
             </h3>
-            <p className="text-xs text-slate-500">
-              {isArabic ? 'معلومات الشركة الرسمية المطبوعة على فواتير PDF الصادرة' : 'Official agency credentials printed on generated invoices'}
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              {t.agencyProfileSubtitle || (isArabic ? 'المعلومات الرسمية المطبوعة على فواتير PDF الصادرة' : 'Official credentials printed on generated invoices & PDF downloads')}
             </p>
           </div>
 
           {saveSuccess && (
-            <span className="self-start sm:self-center px-3 py-1 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-lg text-xs font-bold flex items-center gap-1 border border-emerald-200 dark:border-emerald-900/60 animate-in fade-in">
-              <Check className="w-3.5 h-3.5" /> {isArabic ? 'تم حفظ التعديلات' : 'Changes Saved'}
+            <span className="self-start sm:self-center px-3.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-bold flex items-center gap-1.5 border border-emerald-200 dark:border-emerald-900/60 animate-in fade-in">
+              <Check className="w-3.5 h-3.5" /> {isArabic ? 'تم حفظ بيانات الشركة بنجاح' : 'Agency Info Saved'}
             </span>
           )}
         </div>
 
-        {/* Informational locked notice */}
-        <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200/90 dark:border-slate-700/80 rounded-2xl text-xs text-slate-600 dark:text-slate-300 flex items-start gap-2.5">
-          <Info className="w-4 h-4 text-blue-600 dark:text-sky-400 shrink-0 mt-0.5" />
-          <p className="leading-relaxed">
-            {t.agencyLockedExplanation || 'Core agency credentials (Name, Location, Website, Contact Email) were established during onboarding and are permanently locked for invoice integrity and financial auditing. You may update your Agency Logo and Default Payment Terms at any time below.'}
-          </p>
+        {/* Agency Information Inputs Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Agency Name */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
+              <span>{t.agencyName}</span>
+              <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="input-agency-name"
+              type="text"
+              required
+              value={agencyName}
+              onChange={(e) => setAgencyName(e.target.value)}
+              placeholder="e.g. Acme Creative Agency"
+              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-blue-600 focus:outline-none transition-all"
+            />
+          </div>
+
+          {/* Headquarters Location / Address */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
+              <span>{t.agencyAddress}</span>
+              <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="input-agency-address"
+              type="text"
+              required
+              value={agencyAddress}
+              onChange={(e) => setAgencyAddress(e.target.value)}
+              placeholder="e.g. Amman, 7th Circle, Jordan"
+              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-blue-600 focus:outline-none transition-all"
+            />
+          </div>
+
+          {/* Official Website URL */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <Globe className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
+              <span>{t.agencyWebsite}</span>
+            </label>
+            <input
+              id="input-agency-website"
+              type="text"
+              value={agencyWebsite}
+              onChange={(e) => setAgencyWebsite(e.target.value)}
+              placeholder="e.g. https://acme.agency"
+              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-blue-600 focus:outline-none transition-all"
+            />
+          </div>
+
+          {/* Contact / Invoicing Email */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <Mail className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
+              <span>{t.agencyEmail}</span>
+              <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="input-agency-email"
+              type="email"
+              required
+              value={agencyEmail}
+              onChange={(e) => setAgencyEmail(e.target.value)}
+              placeholder="e.g. billing@acme.agency"
+              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-blue-600 focus:outline-none transition-all"
+            />
+          </div>
+
+          {/* Agency Phone Number (Optional) */}
+          <div className="space-y-1.5 sm:col-span-2">
+            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <Phone className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
+              <span>{t.agencyPhone}</span>
+            </label>
+            <input
+              id="input-agency-phone"
+              type="tel"
+              value={agencyPhone}
+              onChange={(e) => setAgencyPhone(e.target.value)}
+              placeholder="e.g. +962 7 9000 0000"
+              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-blue-600 focus:outline-none transition-all"
+            />
+          </div>
         </div>
 
-        {/* 1. Locked / Read-Only Agency Information Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          {/* Agency Name (Locked) */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/80 relative">
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
-                <span>{t.agencyName}</span>
-              </label>
-              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                <Lock className="w-2.5 h-2.5" /> {t.lockedBadge || 'Locked'}
-              </span>
-            </div>
-            <div className="text-sm font-extrabold text-slate-800 dark:text-slate-100 truncate">
-              {lockedAgencyName}
-            </div>
-          </div>
-
-          {/* Headquarters Location (Locked) */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/80 relative">
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
-                <span>{t.headquartersLocation || 'Headquarters Location'}</span>
-              </label>
-              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                <Lock className="w-2.5 h-2.5" /> {t.lockedBadge || 'Locked'}
-              </span>
-            </div>
-            <div className="text-sm font-extrabold text-slate-800 dark:text-slate-100 truncate">
-              {lockedLocation}
-            </div>
-          </div>
-
-          {/* Official Website (Locked) */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/80 relative">
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                <Globe className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
-                <span>{t.officialWebsite || 'Official Website URL'}</span>
-              </label>
-              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                <Lock className="w-2.5 h-2.5" /> {t.lockedBadge || 'Locked'}
-              </span>
-            </div>
-            <div className="text-sm font-extrabold text-slate-800 dark:text-slate-100 truncate">
-              {lockedWebsite}
-            </div>
-          </div>
-
-          {/* Contact / Support Email (Locked) */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/80 relative">
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                <Mail className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
-                <span>{t.contactSupportEmail || 'Contact / Support Email'}</span>
-              </label>
-              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                <Lock className="w-2.5 h-2.5" /> {t.lockedBadge || 'Locked'}
-              </span>
-            </div>
-            <div className="text-sm font-extrabold text-slate-800 dark:text-slate-100 truncate">
-              {lockedContactEmail}
-            </div>
-          </div>
-        </div>
-
-        {/* 2. Editable Exception #1: Company Logo Upload & Preview */}
+        {/* Company Logo Upload & Preview */}
         <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -361,9 +407,9 @@ export const AccountView: React.FC<AccountViewProps> = ({
               </div>
 
               <div>
-                <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                   <ImagePlus className="w-4 h-4 text-blue-600 dark:text-sky-400" />
-                  <span>{isArabic ? 'شعار الشركة / المؤسسة (قابل للتعديل)' : 'Company / Agency Logo (Editable)'}</span>
+                  <span>{isArabic ? 'شعار الشركة / المؤسسة' : 'Company / Agency Logo'}</span>
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 max-w-md">
                   {isArabic 
@@ -415,12 +461,12 @@ export const AccountView: React.FC<AccountViewProps> = ({
           </div>
         </div>
 
-        {/* 3. Editable Exception #2: Default Payment Terms */}
-        <form onSubmit={handleSavePaymentTerms} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-3">
+        {/* Default Payment Terms */}
+        <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2">
           <div className="flex items-center justify-between">
             <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
               <FileText className="w-4 h-4 text-blue-600 dark:text-sky-400" />
-              <span>{t.paymentTerms} ({isArabic ? 'قابل للتعديل' : 'Editable'})</span>
+              <span>{t.paymentTerms}</span>
             </label>
             <span className="text-[11px] text-slate-400">
               {isArabic ? 'تطبق تلقائياً على كل فاتورة جديدة' : 'Applies to all newly generated invoices'}
@@ -432,23 +478,27 @@ export const AccountView: React.FC<AccountViewProps> = ({
             rows={3}
             value={defaultPaymentTerms}
             onChange={(e) => setDefaultPaymentTerms(e.target.value)}
-            placeholder="Payment due within 30 days of invoice date..."
-            required
+            placeholder="Payment due within 30 days of invoice date. Bank transfer accepted."
             className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-600 focus:outline-none resize-none leading-relaxed"
           />
+        </div>
 
-          <div className="flex justify-end pt-1">
-            <button
-              id="btn-save-agency-settings"
-              type="submit"
-              className="px-5 py-2.5 bg-[#0F284E] hover:bg-[#1E3A8A] dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              <Check className="w-4 h-4" />
-              <span>{t.savePaymentTermsBtn || t.saveChanges}</span>
-            </button>
-          </div>
-        </form>
-      </div>
+        {/* Save Agency Information Action Button */}
+        <div className="flex items-center justify-between pt-2">
+          <p className="text-[11px] text-slate-400">
+            {isArabic ? 'تنعكس التعديلات فوراً على كافة الفواتير الجديدة' : 'Changes update your profile and apply across all future invoices'}
+          </p>
+
+          <button
+            id="btn-save-agency-profile"
+            type="submit"
+            className="px-6 py-2.5 bg-[#0F284E] hover:bg-[#1E3A8A] dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
+          >
+            <Save className="w-4 h-4" />
+            <span>{t.saveAgencyProfileBtn || t.saveChanges}</span>
+          </button>
+        </div>
+      </form>
 
       {/* Settings Grid: Currency, Language, Theme, Storage */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -329,12 +329,26 @@ export const StorageService = {
           agreedToPrivacyPolicy: true
         };
 
+        if (settings.companyName !== undefined) {
+          profileObj.companyName = settings.companyName;
+          profileObj.displayName = settings.companyName;
+        }
+        if (settings.companyAddress !== undefined) profileObj.companyAddress = settings.companyAddress;
+        if (settings.companyWebsite !== undefined) profileObj.companyWebsite = settings.companyWebsite;
+        if (settings.companyEmail !== undefined) profileObj.companyEmail = settings.companyEmail;
         if (settings.companyLogo !== undefined) profileObj.companyLogo = settings.companyLogo;
         if (settings.defaultPaymentTerms !== undefined) profileObj.defaultPaymentTerms = settings.defaultPaymentTerms;
         localStorage.setItem(profileKey, JSON.stringify(profileObj));
 
         const currentUser = this.getUser();
         if (currentUser && currentUser.uid === uid) {
+          if (settings.companyName !== undefined) {
+            currentUser.companyName = settings.companyName;
+            currentUser.displayName = settings.companyName;
+          }
+          if (settings.companyAddress !== undefined) currentUser.companyAddress = settings.companyAddress;
+          if (settings.companyWebsite !== undefined) currentUser.companyWebsite = settings.companyWebsite;
+          if (settings.companyEmail !== undefined) currentUser.companyEmail = settings.companyEmail;
           if (settings.companyLogo !== undefined) currentUser.companyLogo = settings.companyLogo;
           if (settings.defaultPaymentTerms !== undefined) currentUser.defaultPaymentTerms = settings.defaultPaymentTerms;
           this.setUser(currentUser);
@@ -376,11 +390,11 @@ export const StorageService = {
     localStorage.setItem(key, JSON.stringify(clients));
   },
 
-  saveClient(
+  async saveClient(
     clientData: Omit<ClientProject, 'id' | 'createdAt'>,
     existingId?: string,
     explicitUid?: string | null
-  ): ClientProject {
+  ): Promise<ClientProject> {
     const uid = explicitUid || this.getCurrentUid();
     const clients = this.getClients(uid);
     let client: ClientProject;
@@ -451,14 +465,16 @@ export const StorageService = {
     }
     this.saveInvoices(invoices, uid);
 
-    // Asynchronously push to Supabase tables
+    // Direct and robust persistence to Supabase PostgreSQL
     if (uid) {
-      SupabaseService.upsertClient(client, uid).catch(err => {
+      try {
+        await Promise.allSettled([
+          SupabaseService.upsertClient(client, uid),
+          SupabaseService.upsertInvoice(finalInvoice, uid)
+        ]);
+      } catch (err) {
         console.warn('Background Supabase upsertClient notice:', err);
-      });
-      SupabaseService.upsertInvoice(finalInvoice, uid).catch(err => {
-        console.warn('Background Supabase upsertInvoice notice:', err);
-      });
+      }
     }
 
     this.logActivity({
@@ -471,7 +487,7 @@ export const StorageService = {
     return client;
   },
 
-  deleteClient(clientId: string, explicitUid?: string | null): void {
+  async deleteClient(clientId: string, explicitUid?: string | null): Promise<void> {
     const uid = explicitUid || this.getCurrentUid();
     const clients = this.getClients(uid).filter(c => c.id !== clientId);
     this.saveClients(clients, uid);
@@ -479,11 +495,13 @@ export const StorageService = {
     const invoices = this.getInvoices(uid).filter(i => i.clientId !== clientId);
     this.saveInvoices(invoices, uid);
 
-    // Asynchronously delete from Supabase tables
+    // Direct deletion from Supabase PostgreSQL
     if (uid) {
-      SupabaseService.deleteClient(clientId, uid).catch(err => {
+      try {
+        await SupabaseService.deleteClient(clientId, uid);
+      } catch (err) {
         console.warn('Background Supabase deleteClient notice:', err);
-      });
+      }
     }
 
     this.logActivity({
@@ -517,7 +535,7 @@ export const StorageService = {
     localStorage.setItem(key, JSON.stringify(invoices));
   },
 
-  updateInvoiceStatus(invoiceId: string, status: InvoiceStatus, explicitUid?: string | null): void {
+  async updateInvoiceStatus(invoiceId: string, status: InvoiceStatus, explicitUid?: string | null): Promise<void> {
     const uid = explicitUid || this.getCurrentUid();
     const invoices = this.getInvoices(uid);
     const idx = invoices.findIndex(i => i.id === invoiceId);
@@ -526,9 +544,11 @@ export const StorageService = {
       this.saveInvoices(invoices, uid);
 
       if (uid) {
-        SupabaseService.updateInvoiceStatus(invoiceId, status, uid).catch(err => {
+        try {
+          await SupabaseService.updateInvoiceStatus(invoiceId, status, uid);
+        } catch (err) {
           console.warn('Background Supabase updateInvoiceStatus notice:', err);
-        });
+        }
       }
 
       this.logActivity({
@@ -564,11 +584,11 @@ export const StorageService = {
     localStorage.setItem(key, JSON.stringify(spendings));
   },
 
-  saveSpending(
+  async saveSpending(
     spendingData: Omit<Spending, 'id' | 'createdAt'>,
     existingId?: string,
     explicitUid?: string | null
-  ): Spending {
+  ): Promise<Spending> {
     const uid = explicitUid || this.getCurrentUid();
     const spendings = this.getSpendings(uid);
     let spending: Spending;
@@ -601,9 +621,11 @@ export const StorageService = {
     this.saveSpendings(spendings, uid);
 
     if (uid) {
-      SupabaseService.upsertSpending(spending, uid).catch(err => {
+      try {
+        await SupabaseService.upsertSpending(spending, uid);
+      } catch (err) {
         console.warn('Background Supabase upsertSpending notice:', err);
-      });
+      }
     }
 
     this.logActivity({
@@ -616,15 +638,17 @@ export const StorageService = {
     return spending;
   },
 
-  deleteSpending(spendingId: string, explicitUid?: string | null): void {
+  async deleteSpending(spendingId: string, explicitUid?: string | null): Promise<void> {
     const uid = explicitUid || this.getCurrentUid();
     const spendings = this.getSpendings(uid).filter(s => s.id !== spendingId);
     this.saveSpendings(spendings, uid);
 
     if (uid) {
-      SupabaseService.deleteSpending(spendingId, uid).catch(err => {
+      try {
+        await SupabaseService.deleteSpending(spendingId, uid);
+      } catch (err) {
         console.warn('Background Supabase deleteSpending notice:', err);
-      });
+      }
     }
 
     this.logActivity({

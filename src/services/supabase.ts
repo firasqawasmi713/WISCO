@@ -36,7 +36,7 @@ export const supabase: SupabaseClient =
 
 export function mapClientFromRow(row: any): ClientProject {
   return {
-    id: row.id,
+    id: String(row.id || ''),
     name: row.name || '',
     companyName: row.company_name || row.companyName || '',
     email: row.email || '',
@@ -55,21 +55,22 @@ export function mapClientFromRow(row: any): ClientProject {
 }
 
 export function mapClientToRow(client: Partial<ClientProject>, userId: string): Record<string, any> {
+  const cleanId = client.id || `cli-${Date.now()}`;
   return {
-    id: client.id,
+    id: cleanId,
     user_id: userId,
-    name: client.name,
-    company_name: client.companyName,
+    name: client.name || '',
+    company_name: client.companyName || '',
     email: client.email || '',
     phone: client.phone || '',
     address: client.address || '',
-    project: client.project,
-    category: client.category,
-    cost: client.cost,
-    operating_expenses: client.operatingExpenses ?? 0,
-    start_date: client.startDate,
+    project: client.project || '',
+    category: client.category || 'General',
+    cost: Number(client.cost || 0),
+    operating_expenses: Number(client.operatingExpenses ?? 0),
+    start_date: client.startDate || new Date().toISOString().split('T')[0],
     due_date: client.dueDate || null,
-    status: client.status,
+    status: client.status || 'In Progress',
     notes: client.notes || '',
     created_at: client.createdAt || new Date().toISOString()
   };
@@ -89,9 +90,9 @@ export function mapInvoiceFromRow(row: any): Invoice {
   }
 
   return {
-    id: row.id,
+    id: String(row.id || ''),
     invoiceNumber: row.invoice_number || row.invoiceNumber || 'INV-001',
-    clientId: row.client_id || row.clientId || '',
+    clientId: String(row.client_id || row.clientId || ''),
     clientName: row.client_name || row.clientName || '',
     companyName: row.company_name || row.companyName || '',
     clientEmail: row.client_email || row.clientEmail || '',
@@ -115,27 +116,28 @@ export function mapInvoiceFromRow(row: any): Invoice {
 }
 
 export function mapInvoiceToRow(invoice: Partial<Invoice>, userId: string): Record<string, any> {
+  const cleanId = invoice.id || `inv-${Date.now()}`;
   return {
-    id: invoice.id,
+    id: cleanId,
     user_id: userId,
-    invoice_number: invoice.invoiceNumber,
-    client_id: invoice.clientId,
-    client_name: invoice.clientName,
-    company_name: invoice.companyName,
+    invoice_number: invoice.invoiceNumber || 'INV-001',
+    client_id: invoice.clientId || '',
+    client_name: invoice.clientName || '',
+    company_name: invoice.companyName || '',
     client_email: invoice.clientEmail || '',
     client_phone: invoice.clientPhone || '',
     client_address: invoice.clientAddress || '',
-    project_name: invoice.projectName,
-    project_category: invoice.projectCategory,
-    issue_date: invoice.issueDate,
-    due_date: invoice.dueDate,
-    items: invoice.items,
-    subtotal: invoice.subtotal,
-    tax_rate: invoice.taxRate ?? 0,
-    tax_amount: invoice.taxAmount ?? 0,
-    operating_expenses: invoice.operatingExpenses ?? 0,
-    total_amount: invoice.totalAmount,
-    status: invoice.status,
+    project_name: invoice.projectName || '',
+    project_category: invoice.projectCategory || '',
+    issue_date: invoice.issueDate || new Date().toISOString().split('T')[0],
+    due_date: invoice.dueDate || null,
+    items: invoice.items || [],
+    subtotal: Number(invoice.subtotal || 0),
+    tax_rate: Number(invoice.taxRate ?? 0),
+    tax_amount: Number(invoice.taxAmount ?? 0),
+    operating_expenses: Number(invoice.operatingExpenses ?? 0),
+    total_amount: Number(invoice.totalAmount || 0),
+    status: invoice.status || 'Pending',
     notes: invoice.notes || '',
     payment_terms: invoice.paymentTerms || '',
     created_at: invoice.createdAt || new Date().toISOString()
@@ -144,7 +146,7 @@ export function mapInvoiceToRow(invoice: Partial<Invoice>, userId: string): Reco
 
 export function mapSpendingFromRow(row: any): Spending {
   return {
-    id: row.id,
+    id: String(row.id || ''),
     item: row.item || '',
     purpose: row.purpose || '',
     amount: Number(row.amount || 0),
@@ -159,16 +161,17 @@ export function mapSpendingFromRow(row: any): Spending {
 }
 
 export function mapSpendingToRow(spending: Partial<Spending>, userId: string): Record<string, any> {
+  const cleanId = spending.id || `sp-${Date.now()}`;
   return {
-    id: spending.id,
+    id: cleanId,
     user_id: userId,
-    item: spending.item,
+    item: spending.item || '',
     purpose: spending.purpose || '',
-    amount: spending.amount,
+    amount: Number(spending.amount || 0),
     reseller_name: spending.resellerName || '',
-    category: spending.category,
-    date: spending.date,
-    payment_method: spending.paymentMethod,
+    category: spending.category || 'Other',
+    date: spending.date || new Date().toISOString().split('T')[0],
+    payment_method: spending.paymentMethod || 'Credit Card',
     receipt_number: spending.receiptNumber || '',
     notes: spending.notes || '',
     created_at: spending.createdAt || new Date().toISOString()
