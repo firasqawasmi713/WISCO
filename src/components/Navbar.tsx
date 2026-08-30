@@ -1,33 +1,20 @@
 import React from 'react';
 import { 
-  Sun, 
-  Moon, 
-  Globe, 
-  Coins, 
   LayoutDashboard, 
   Users, 
   ReceiptText, 
   Wallet, 
   FileSpreadsheet, 
-  Settings,
-  ShieldCheck,
-  LogOut
+  ShieldCheck
 } from 'lucide-react';
-import { NavTab, LanguageCode, CurrencyCode, UserProfile } from '../types';
+import { NavTab, LanguageCode, UserProfile } from '../types';
 import { TRANSLATIONS } from '../constants/translations';
-import { CURRENCIES } from '../constants/currencies';
 
 interface NavbarProps {
   currentTab: NavTab;
   onSelectTab: (tab: NavTab) => void;
   lang: LanguageCode;
-  onToggleLanguage: () => void;
-  currency: CurrencyCode;
-  onChangeCurrency: (code: CurrencyCode) => void;
-  darkMode: boolean;
-  onToggleDarkMode: () => void;
   user: UserProfile | null;
-  onSignOut: () => void;
   onOpenPrivacyPolicy: () => void;
 }
 
@@ -35,13 +22,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentTab,
   onSelectTab,
   lang,
-  onToggleLanguage,
-  currency,
-  onChangeCurrency,
-  darkMode,
-  onToggleDarkMode,
   user,
-  onSignOut,
   onOpenPrivacyPolicy
 }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
@@ -60,8 +41,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'clients', label: t.clients, icon: <Users className="w-5 h-5" /> },
     { id: 'invoices', label: t.invoices, icon: <ReceiptText className="w-5 h-5" /> },
     { id: 'spendings', label: t.spendings, icon: <Wallet className="w-5 h-5" /> },
-    { id: 'reports', label: t.reports, icon: <FileSpreadsheet className="w-5 h-5" /> },
-    { id: 'account', label: t.account, icon: <Settings className="w-5 h-5" /> }
+    { id: 'reports', label: t.reports, icon: <FileSpreadsheet className="w-5 h-5" /> }
   ];
 
   return (
@@ -95,108 +75,53 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Right: Controls & User Profile */}
-        <div className="flex items-center gap-2 sm:gap-4">
-          {/* Currency Selector */}
-          <div className="relative flex items-center">
-            <label htmlFor="currency-quick-select" className="sr-only">Select Currency</label>
-            <div className="flex items-center bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 shadow-sm">
-              <Coins className="w-3.5 h-3.5 text-[#2563EB] dark:text-sky-400 mr-1.5 rtl:mr-0 rtl:ml-1.5" />
-              <select
-                id="currency-quick-select"
-                value={currency}
-                onChange={(e) => onChangeCurrency(e.target.value as CurrencyCode)}
-                className="bg-transparent font-bold text-xs text-slate-800 dark:text-slate-100 focus:outline-none cursor-pointer pr-1 rtl:pr-0 rtl:pl-1"
-              >
-                {Object.values(CURRENCIES).map((c) => (
-                  <option key={c.code} value={c.code} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">
-                    {c.code} ({lang === 'ar' ? c.nameAr : c.symbol})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Language Toggle */}
+        {/* Right: User Profile / Name Option (Access Account Tab) */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Privacy Policy Quick Trigger */}
           <button
-            id="navbar-btn-lang-toggle"
-            onClick={onToggleLanguage}
-            title={lang === 'en' ? 'Switch to Arabic' : 'التبديل إلى الإنجليزية'}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 transition-all cursor-pointer shadow-sm"
+            id="navbar-btn-policy"
+            type="button"
+            onClick={onOpenPrivacyPolicy}
+            title={t.readPrivacyPolicy}
+            className="p-2 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
           >
-            <Globe className="w-3.5 h-3.5 text-[#2563EB] dark:text-sky-400" />
-            <span>{lang === 'en' ? 'العربية' : 'English'}</span>
+            <ShieldCheck className="w-4 h-4" />
           </button>
 
-          {/* Dark Mode Toggle */}
-          <button
-            id="navbar-btn-theme-toggle"
-            onClick={onToggleDarkMode}
-            title={darkMode ? 'Light Theme' : 'Dark Theme'}
-            className="p-2 bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 transition-all cursor-pointer shadow-sm"
-          >
-            {darkMode ? (
-              <Sun className="w-4 h-4 text-amber-400" />
-            ) : (
-              <Moon className="w-4 h-4 text-[#2563EB]" />
-            )}
-          </button>
-
-          {/* User Welcome Block & Avatar Circle - Linked to Account Tab */}
+          {/* User Welcome Block & Avatar Circle - Access Account Settings */}
           <button
             id="navbar-btn-user-account"
             type="button"
             onClick={() => onSelectTab('account')}
-            title={lang === 'ar' ? 'الانتقال إلى إعدادات الحساب' : 'Go to Account Settings'}
-            className={`flex items-center space-x-2.5 rtl:space-x-reverse pl-2 pr-1.5 py-1 rounded-2xl transition-all cursor-pointer group border ${
+            title={lang === 'ar' ? 'إعدادات الحساب' : 'Account Settings'}
+            className={`flex items-center space-x-2.5 rtl:space-x-reverse px-2.5 py-1.5 rounded-2xl transition-all cursor-pointer group border ${
               currentTab === 'account'
-                ? 'bg-blue-50/80 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800/80 shadow-sm'
-                : 'border-slate-200/60 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700'
+                ? 'bg-blue-50 dark:bg-blue-950/70 border-blue-300 dark:border-blue-700 shadow-sm'
+                : 'border-slate-200 dark:border-slate-700/80 bg-slate-50/60 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600'
             }`}
           >
             <div className="text-right rtl:text-left hidden sm:block">
               <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider group-hover:text-blue-600 dark:group-hover:text-sky-400 transition-colors">
-                {lang === 'ar' ? 'مرحباً،' : 'Welcome back,'}
+                {lang === 'ar' ? 'الحساب' : 'Account'}
               </p>
-              <p className="text-xs font-bold text-[#0F284E] dark:text-sky-300 group-hover:text-blue-600 dark:group-hover:text-white transition-colors max-w-[130px] truncate">
+              <p className="text-xs font-bold text-[#0F284E] dark:text-sky-300 group-hover:text-blue-600 dark:group-hover:text-white transition-colors max-w-[140px] truncate">
                 {user?.displayName || (lang === 'ar' ? 'حساب المستخدم' : 'Alexander Whislly')}
               </p>
             </div>
-            <div className={`w-9 h-9 rounded-full border-2 shadow-sm flex items-center justify-center text-white font-black text-xs transition-transform group-hover:scale-105 shrink-0 ${
+            <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 shadow-sm flex items-center justify-center text-white font-black text-xs transition-transform group-hover:scale-105 shrink-0 ${
               currentTab === 'account'
                 ? 'bg-blue-600 border-blue-400 ring-2 ring-blue-300 dark:ring-blue-800'
-                : 'bg-[#38BDF8] group-hover:bg-blue-600 border-white dark:border-slate-700'
+                : 'bg-[#0F284E] dark:bg-blue-600 group-hover:bg-blue-600 border-white dark:border-slate-700'
             }`}>
               {user?.displayName 
                 ? user.displayName.split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase() 
                 : 'AW'}
             </div>
           </button>
-
-
-          {/* Mobile Privacy Policy Quick Button */}
-          <button
-            id="navbar-btn-policy-mobile"
-            onClick={onOpenPrivacyPolicy}
-            title={t.readPrivacyPolicy}
-            className="hidden sm:flex md:hidden p-2 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl text-emerald-600 dark:text-emerald-400 transition-all cursor-pointer"
-          >
-            <ShieldCheck className="w-4 h-4" />
-          </button>
-
-          {/* Mobile sign out button */}
-          <button
-            id="navbar-btn-signout-mobile"
-            onClick={onSignOut}
-            title={t.signOut}
-            className="md:hidden p-2 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 rounded-xl transition-all cursor-pointer"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
         </div>
       </header>
 
-      {/* Mobile Bottom Navigation Bar */}
+      {/* Mobile Bottom Navigation Bar (Account tab removed) */}
       <div 
         id="mobile-bottom-navbar"
         className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-950/95 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 px-2 py-1.5 flex items-center justify-around shadow-2xl"

@@ -294,12 +294,6 @@ export default function App() {
         onSelectTab={setCurrentTab}
         user={user}
         lang={settings.language}
-        onToggleLanguage={() => handleUpdateSettings({ language: settings.language === 'en' ? 'ar' : 'en' })}
-        currency={settings.currency}
-        onChangeCurrency={(newCurrency) => handleUpdateSettings({ currency: newCurrency })}
-        darkMode={settings.darkMode}
-        onToggleDarkMode={() => handleUpdateSettings({ darkMode: !settings.darkMode })}
-        onSignOut={handleSignOut}
         onOpenPrivacyPolicy={() => setPrivacyPolicyOpen(true)}
       />
 
@@ -311,7 +305,6 @@ export default function App() {
           onSelectTab={setCurrentTab}
           lang={settings.language}
           user={user}
-          onSignOut={handleSignOut}
           onOpenPrivacyPolicy={() => setPrivacyPolicyOpen(true)}
           totalRevenue={totalRevenue}
           currency={settings.currency}

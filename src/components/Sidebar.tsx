@@ -5,9 +5,7 @@ import {
   ReceiptText, 
   Wallet, 
   FileSpreadsheet, 
-  Settings, 
   ShieldCheck, 
-  LogOut,
   Building
 } from 'lucide-react';
 import { NavTab, LanguageCode, UserProfile, CurrencyCode } from '../types';
@@ -19,7 +17,6 @@ interface SidebarProps {
   onSelectTab: (tab: NavTab) => void;
   lang: LanguageCode;
   user: UserProfile | null;
-  onSignOut: () => void;
   onOpenPrivacyPolicy: () => void;
   totalRevenue: number;
   currency: CurrencyCode;
@@ -30,7 +27,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectTab,
   lang,
   user,
-  onSignOut,
   onOpenPrivacyPolicy,
   totalRevenue,
   currency
@@ -43,8 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'clients', label: t.clients, icon: <Users className="w-5 h-5" /> },
     { id: 'invoices', label: t.invoices, icon: <ReceiptText className="w-5 h-5" /> },
     { id: 'spendings', label: t.spendings, icon: <Wallet className="w-5 h-5" /> },
-    { id: 'reports', label: t.reports, icon: <FileSpreadsheet className="w-5 h-5" /> },
-    { id: 'account', label: t.account, icon: <Settings className="w-5 h-5" /> }
+    { id: 'reports', label: t.reports, icon: <FileSpreadsheet className="w-5 h-5" /> }
   ];
 
   return (
@@ -81,7 +76,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Navigation Links */}
+      {/* Navigation Links (Account tab removed) */}
       <nav className="flex-1 px-4 space-y-2 overflow-y-auto py-2">
         {navItems.map((item) => {
           const active = currentTab === item.id;
@@ -105,7 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
       </nav>
 
-      {/* Footer Info & User */}
+      {/* Footer Info & Privacy */}
       <div className="p-4 border-t border-white/10 bg-black/20 space-y-3">
         {/* Privacy policy trigger */}
         <button
@@ -122,36 +117,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </span>
         </button>
 
-        {/* User Card */}
-        <div className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 transition-all">
-          <button
-            id="sidebar-user-account-btn"
-            type="button"
-            onClick={() => onSelectTab('account')}
-            className="flex items-center gap-2.5 overflow-hidden text-left rtl:text-right flex-1 cursor-pointer group"
-            title={lang === 'ar' ? 'إعدادات الحساب' : 'Account Settings'}
-          >
-            <div className="w-8 h-8 rounded-lg bg-blue-500/30 border border-blue-400/40 text-blue-300 group-hover:bg-blue-600 group-hover:text-white flex items-center justify-center font-bold text-xs shrink-0 transition-colors">
-              {user?.displayName ? user.displayName.charAt(0).toUpperCase() : 'W'}
+        {/* User Card linking directly to Account tab */}
+        <button
+          id="sidebar-user-account-btn"
+          type="button"
+          onClick={() => onSelectTab('account')}
+          className="w-full flex items-center gap-2.5 p-2 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10 transition-all text-left rtl:text-right cursor-pointer group"
+          title={lang === 'ar' ? 'إعدادات الحساب' : 'Account Settings'}
+        >
+          <div className="w-8 h-8 rounded-lg bg-blue-500/30 border border-blue-400/40 text-blue-300 group-hover:bg-blue-600 group-hover:text-white flex items-center justify-center font-bold text-xs shrink-0 transition-colors">
+            {user?.displayName ? user.displayName.charAt(0).toUpperCase() : 'W'}
+          </div>
+          <div className="overflow-hidden flex-1">
+            <div className="text-xs font-bold text-white group-hover:text-sky-300 transition-colors truncate">
+              {user?.displayName || 'Whislly Admin'}
             </div>
-            <div className="overflow-hidden">
-              <div className="text-xs font-bold text-white group-hover:text-sky-300 transition-colors truncate">
-                {user?.displayName || 'Whislly Admin'}
-              </div>
-              <div className="text-[10px] text-slate-400 truncate">
-                {user?.email || 'Active Session'}
-              </div>
+            <div className="text-[10px] text-slate-400 truncate">
+              {user?.email || 'Active Session'}
             </div>
-          </button>
-          <button
-            id="sidebar-btn-signout"
-            onClick={onSignOut}
-            title={t.signOut}
-            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-950/40 rounded-lg transition-colors cursor-pointer"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-        </div>
+          </div>
+        </button>
       </div>
     </aside>
   );

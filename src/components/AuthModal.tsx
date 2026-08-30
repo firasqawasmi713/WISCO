@@ -41,6 +41,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const isArabic = lang === 'ar';
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const modalBodyRef = useRef<HTMLDivElement | null>(null);
 
   const [tab, setTab] = useState<'signin' | 'signup'>('signin');
   const [step, setStep] = useState<'form' | 'verify'>('form');
@@ -50,7 +51,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   
-  // Agency Profile Onboarding Fields (Mandatory)
+  // Agency Profile Onboarding Fields (Website is Optional)
   const [companyName, setCompanyName] = useState('');
   const [companyAddress, setCompanyAddress] = useState('');
   const [companyWebsite, setCompanyWebsite] = useState('');
@@ -76,6 +77,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   
   // State
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
   // Cooldown countdown effect
@@ -156,19 +158,34 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     return strictEmailRegex.test(emailStr.trim());
   };
 
+  const clearFieldError = (fieldName: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[fieldName]) return prev;
+      const updated = { ...prev };
+      delete updated[fieldName];
+      return updated;
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setFieldErrors({});
     setResendNotice(null);
 
     if (tab === 'signin') {
-      if (!email || !isValidEmail(email)) {
-        setError(t.authErrorEmailReq);
-        return;
+      const errs: Record<string, string> = {};
+      if (!email.trim() || !isValidEmail(email)) {
+        errs.email = t.authErrorEmailReq;
+      }
+      if (!password || password.length < 6) {
+        errs.password = t.authErrorPassReq;
       }
 
-      if (!password || password.length < 6) {
-        setError(t.authErrorPassReq);
+      if (Object.keys(errs).length > 0) {
+        setFieldErrors(errs);
+        setError(Object.values(errs)[0]);
+        modalBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
 
@@ -178,57 +195,70 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setLoading(false);
         if (!res.success || !res.user) {
           setError(res.error || (isArabic ? 'بيانات الدخول غير صحيحة.' : 'Invalid credentials.'));
+          modalBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
           return;
         }
         onSuccess(res.user);
       } catch (err: any) {
         setLoading(false);
         setError(err.message || (isArabic ? 'حدث خطأ أثناء تسجيل الدخول.' : 'Authentication error.'));
+        modalBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
       }
     } else {
-      // SIGN UP VALIDATION WITH STRICT EMAIL REGEX
-      if (!email || !isValidEmail(email)) {
-        setError(t.authErrorEmailReq);
-        return;
+      // SIGN UP VALIDATION WITH COMPREHENSIVE FIELD ERRORS & NOTIFICATIONS
+      const errs: Record<string, string> = {};
+
+      if (!email.trim()) {
+        errs.email = isArabic ? 'يرجى إدخال البريد الإلكتروني للعمل.' : 'Please enter your work email address.';
+      } else if (!isValidEmail(email)) {
+        errs.email = isArabic ? 'صيغة البريد الإلكتروني غير صحيحة (user@domain.com).' : 'Email must be in valid format (user@domain.com).';
       }
 
-      if (!password || password.length < 6) {
-        setError(t.authErrorPassReq);
-        return;
+      if (!password) {
+        errs.password = isArabic ? 'يرجى إدخال كلمة المرور.' : 'Please enter a password.';
+      } else if (password.length < 6) {
+        errs.password = t.authErrorPassReq;
       }
 
-      if (password !== confirmPassword) {
-        setError(t.authErrorPassMatch || (isArabic ? 'كلمات المرور غير متطابقة.' : 'Passwords do not match.'));
-        return;
+      if (!confirmPassword) {
+        errs.confirmPassword = isArabic ? 'يرجى تأكيد كلمة المرور.' : 'Please confirm your password.';
+      } else if (password !== confirmPassword) {
+        errs.confirmPassword = t.authErrorPassMatch || (isArabic ? 'كلمات المرور غير متطابقة.' : 'Passwords do not match.');
       }
 
       if (!companyName.trim()) {
-        setError(t.authErrorCompanyReq || (isArabic ? 'اسم الشركة / الوكالة مطلوب.' : 'Agency / Company Name is required.'));
-        return;
+        errs.companyName = t.authErrorCompanyReq || (isArabic ? 'اسم الشركة / الوكالة مطلوب.' : 'Agency / Company Name is required.');
       }
 
       if (!companyAddress.trim()) {
-        setError(t.authErrorLocationReq || (isArabic ? 'موقع المقر الرئيسي (المدينة، الدولة) مطلوب.' : 'Headquarters Location (City, Country) is required.'));
-        return;
+        errs.companyAddress = t.authErrorLocationReq || (isArabic ? 'موقع المقر الرئيسي (المدينة، الدولة) مطلوب.' : 'Headquarters Location (City, Country) is required.');
       }
 
-      if (!companyWebsite.trim()) {
-        setError(t.authErrorWebsiteReq || (isArabic ? 'الموقع الإلكتروني الرسمي مطلوب.' : 'Official Website URL is required.'));
-        return;
-      }
+      // Note: companyWebsite is OPTIONAL per requirement.
 
-      if (!companyEmail || !isValidEmail(companyEmail)) {
-        setError(t.authErrorContactEmailReq || (isArabic ? 'بريد التواصل والدعم مطلوب وبصيغة صحيحة (user@domain.com).' : 'A valid Contact / Support Email is required (user@domain.com).'));
-        return;
+      if (!companyEmail.trim()) {
+        errs.companyEmail = isArabic ? 'يرجى إدخال بريد التواصل والدعم.' : 'Please provide a Contact / Support Email.';
+      } else if (!isValidEmail(companyEmail)) {
+        errs.companyEmail = t.authErrorContactEmailReq || (isArabic ? 'بريد التواصل والدعم غير صالح (user@domain.com).' : 'Invalid Contact / Support Email format (user@domain.com).');
       }
 
       if (!defaultPaymentTerms.trim()) {
-        setError(t.authErrorPaymentTermsReq || (isArabic ? 'شروط الدفع الافتراضية للفواتير مطلوبة.' : 'Default invoice payment terms are required.'));
-        return;
+        errs.defaultPaymentTerms = t.authErrorPaymentTermsReq || (isArabic ? 'شروط الدفع الافتراضية للفواتير مطلوبة.' : 'Default invoice payment terms are required.');
       }
 
       if (!agreedPolicy) {
-        setError(t.authErrorPolicyReq);
+        errs.agreedPolicy = t.authErrorPolicyReq;
+      }
+
+      if (Object.keys(errs).length > 0) {
+        setFieldErrors(errs);
+        const errorList = Object.values(errs);
+        setError(
+          errorList.length === 1 
+            ? errorList[0] 
+            : (isArabic ? 'يرجى تعبئة وتصحيح الحقول المطلوبة الموضحة باللون الأحمر.' : 'Please fill in and correct the required fields marked in red.')
+        );
+        modalBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
 
@@ -251,6 +281,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         if (!res.success) {
           setError(res.error || (isArabic ? 'حدث خطأ أثناء إنشاء الحساب.' : 'Failed to create account.'));
+          modalBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
           return;
         }
 
@@ -272,6 +303,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       } catch (err: any) {
         setLoading(false);
         setError(err.message || (isArabic ? 'حدث خطأ أثناء إنشاء الحساب.' : 'Failed to create account.'));
+        modalBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
       }
     }
   };
@@ -442,14 +474,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </div>
 
         {/* Scrollable Form Body */}
-        <div className="p-6 sm:p-7 overflow-y-auto space-y-5 flex-1 custom-scrollbar">
+        <div ref={modalBodyRef} className="p-6 sm:p-7 overflow-y-auto space-y-5 flex-1 custom-scrollbar">
           {error && (
             <div 
               id="auth-error-banner"
-              className="p-3.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 rounded-xl text-xs text-red-700 dark:text-red-300 flex items-start gap-2.5"
+              className="p-3.5 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/70 rounded-xl text-xs text-red-700 dark:text-red-300 flex items-start gap-2.5 animate-in fade-in"
             >
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{error}</span>
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
+              <div className="font-semibold leading-relaxed">{error}</div>
             </div>
           )}
 
@@ -458,7 +490,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               id="auth-resend-banner"
               className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 rounded-xl text-xs text-emerald-700 dark:text-emerald-300 flex items-start gap-2.5"
             >
-              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-500" />
               <span>{resendNotice}</span>
             </div>
           )}
@@ -575,7 +607,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </form>
           ) : (
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} noValidate className="space-y-5">
             {/* SIGN IN VIEW */}
             {tab === 'signin' && (
               <div className="space-y-4">
@@ -589,12 +621,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       id="auth-input-email"
                       type="email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        clearFieldError('email');
+                      }}
                       placeholder={t.enterEmail}
-                      required
-                      className="w-full pl-10 pr-4 rtl:pl-4 rtl:pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
+                      className={`w-full pl-10 pr-4 rtl:pl-4 rtl:pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 transition-all ${
+                        fieldErrors.email 
+                          ? 'border-red-500 focus:ring-red-500/30 bg-red-50/20 dark:bg-red-950/20' 
+                          : 'border-slate-200 dark:border-slate-700 focus:ring-blue-600'
+                      }`}
                     />
                   </div>
+                  {fieldErrors.email && (
+                    <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      <span>{fieldErrors.email}</span>
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -607,12 +651,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       id="auth-input-password"
                       type="password"
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        clearFieldError('password');
+                      }}
                       placeholder={t.enterPassword}
-                      required
-                      className="w-full pl-10 pr-4 rtl:pl-4 rtl:pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
+                      className={`w-full pl-10 pr-4 rtl:pl-4 rtl:pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 transition-all ${
+                        fieldErrors.password 
+                          ? 'border-red-500 focus:ring-red-500/30 bg-red-50/20 dark:bg-red-950/20' 
+                          : 'border-slate-200 dark:border-slate-700 focus:ring-blue-600'
+                      }`}
                     />
                   </div>
+                  {fieldErrors.password && (
+                    <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      <span>{fieldErrors.password}</span>
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -640,11 +696,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         onChange={(e) => {
                           setEmail(e.target.value);
                           if (!companyEmail) setCompanyEmail(e.target.value);
+                          clearFieldError('email');
                         }}
                         placeholder={t.enterEmail}
-                        required
-                        className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                        className={`w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 ${
+                          fieldErrors.email 
+                            ? 'border-red-500 focus:ring-red-500/30 bg-red-50/20 dark:bg-red-950/20' 
+                            : 'border-slate-200 dark:border-slate-700 focus:ring-blue-600'
+                        }`}
                       />
+                      {fieldErrors.email && (
+                        <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          <span>{fieldErrors.email}</span>
+                        </p>
+                      )}
                     </div>
 
                     <div>
@@ -655,11 +721,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         id="auth-input-signup-pass"
                         type="password"
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          clearFieldError('password');
+                        }}
                         placeholder="••••••••"
-                        required
-                        className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                        className={`w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 ${
+                          fieldErrors.password 
+                            ? 'border-red-500 focus:ring-red-500/30 bg-red-50/20 dark:bg-red-950/20' 
+                            : 'border-slate-200 dark:border-slate-700 focus:ring-blue-600'
+                        }`}
                       />
+                      {fieldErrors.password && (
+                        <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          <span>{fieldErrors.password}</span>
+                        </p>
+                      )}
                     </div>
 
                     <div>
@@ -670,11 +748,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         id="auth-input-signup-confirm-pass"
                         type="password"
                         value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        onChange={(e) => {
+                          setConfirmPassword(e.target.value);
+                          clearFieldError('confirmPassword');
+                        }}
                         placeholder="••••••••"
-                        required
-                        className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                        className={`w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 ${
+                          fieldErrors.confirmPassword 
+                            ? 'border-red-500 focus:ring-red-500/30 bg-red-50/20 dark:bg-red-950/20' 
+                            : 'border-slate-200 dark:border-slate-700 focus:ring-blue-600'
+                        }`}
                       />
+                      {fieldErrors.confirmPassword && (
+                        <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          <span>{fieldErrors.confirmPassword}</span>
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -711,12 +801,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                           id="auth-input-agency-name"
                           type="text"
                           value={companyName}
-                          onChange={(e) => setCompanyName(e.target.value)}
+                          onChange={(e) => {
+                            setCompanyName(e.target.value);
+                            clearFieldError('companyName');
+                          }}
                           placeholder="e.g. Whislly Media & Design"
-                          required
-                          className="w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                          className={`w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 ${
+                            fieldErrors.companyName 
+                              ? 'border-red-500 focus:ring-red-500/30 bg-red-50/20 dark:bg-red-950/20' 
+                              : 'border-slate-200 dark:border-slate-700 focus:ring-blue-600'
+                          }`}
                         />
                       </div>
+                      {fieldErrors.companyName && (
+                        <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          <span>{fieldErrors.companyName}</span>
+                        </p>
+                      )}
                     </div>
 
                     {/* Headquarters Location */}
@@ -730,18 +832,33 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                           id="auth-input-agency-location"
                           type="text"
                           value={companyAddress}
-                          onChange={(e) => setCompanyAddress(e.target.value)}
+                          onChange={(e) => {
+                            setCompanyAddress(e.target.value);
+                            clearFieldError('companyAddress');
+                          }}
                           placeholder={t.headquartersLocationPlaceholder || 'e.g. Amman, Jordan'}
-                          required
-                          className="w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                          className={`w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 ${
+                            fieldErrors.companyAddress 
+                              ? 'border-red-500 focus:ring-red-500/30 bg-red-50/20 dark:bg-red-950/20' 
+                              : 'border-slate-200 dark:border-slate-700 focus:ring-blue-600'
+                          }`}
                         />
                       </div>
+                      {fieldErrors.companyAddress && (
+                        <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          <span>{fieldErrors.companyAddress}</span>
+                        </p>
+                      )}
                     </div>
 
-                    {/* Official Website */}
+                    {/* Official Website (OPTIONAL) */}
                     <div>
                       <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        {t.officialWebsite} <span className="text-red-500">*</span>
+                        <span>{t.officialWebsite}</span>{' '}
+                        <span className="text-slate-400 font-normal text-[11px]">
+                          ({isArabic ? 'اختياري' : 'Optional'})
+                        </span>
                       </label>
                       <div className="relative">
                         <Globe className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 rtl:left-auto rtl:right-3" />
@@ -750,8 +867,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                           type="text"
                           value={companyWebsite}
                           onChange={(e) => setCompanyWebsite(e.target.value)}
-                          placeholder={t.officialWebsitePlaceholder || 'e.g. www.agency.com'}
-                          required
+                          placeholder={t.officialWebsitePlaceholder || 'e.g. https://www.agency.com (Optional)'}
                           className="w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-blue-600 focus:outline-none"
                         />
                       </div>
@@ -768,12 +884,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                           id="auth-input-agency-email"
                           type="email"
                           value={companyEmail}
-                          onChange={(e) => setCompanyEmail(e.target.value)}
+                          onChange={(e) => {
+                            setCompanyEmail(e.target.value);
+                            clearFieldError('companyEmail');
+                          }}
                           placeholder={t.contactSupportEmailPlaceholder || 'e.g. billing@agency.com'}
-                          required
-                          className="w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                          className={`w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 ${
+                            fieldErrors.companyEmail 
+                              ? 'border-red-500 focus:ring-red-500/30 bg-red-50/20 dark:bg-red-950/20' 
+                              : 'border-slate-200 dark:border-slate-700 focus:ring-blue-600'
+                          }`}
                         />
                       </div>
+                      {fieldErrors.companyEmail && (
+                        <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          <span>{fieldErrors.companyEmail}</span>
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -788,17 +916,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         id="auth-input-payment-terms"
                         rows={2}
                         value={defaultPaymentTerms}
-                        onChange={(e) => setDefaultPaymentTerms(e.target.value)}
+                        onChange={(e) => {
+                          setDefaultPaymentTerms(e.target.value);
+                          clearFieldError('defaultPaymentTerms');
+                        }}
                         placeholder={t.initialPaymentTermsPlaceholder || 'Payment due within 30 days of invoice date...'}
-                        required
-                        className="w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-blue-600 focus:outline-none resize-none"
+                        className={`w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 resize-none ${
+                          fieldErrors.defaultPaymentTerms 
+                            ? 'border-red-500 focus:ring-red-500/30 bg-red-50/20 dark:bg-red-950/20' 
+                            : 'border-slate-200 dark:border-slate-700 focus:ring-blue-600'
+                        }`}
                       />
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-1">
-                      {isArabic 
-                        ? 'ملاحظة: يمكنك تعديل شروط الدفع وشعار الشركة في أي وقت لاحقاً من تبويب الحساب.' 
-                        : 'Note: Payment terms and agency logo remain editable anytime in the Account settings.'}
-                    </p>
+                    {fieldErrors.defaultPaymentTerms ? (
+                      <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        <span>{fieldErrors.defaultPaymentTerms}</span>
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        {isArabic 
+                          ? 'ملاحظة: يمكنك تعديل شروط الدفع وشعار الشركة في أي وقت لاحقاً من تبويب الحساب.' 
+                          : 'Note: Payment terms and agency logo remain editable anytime in the Account settings.'}
+                      </p>
+                    )}
                   </div>
 
                   {/* Optional Agency Logo Upload */}
@@ -866,13 +1007,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
 
                 {/* 3. Mandatory Policy Agreement */}
-                <div className="pt-1">
+                <div className={`p-2.5 rounded-xl transition-all ${fieldErrors.agreedPolicy ? 'bg-red-50/50 dark:bg-red-950/30 border border-red-300 dark:border-red-800' : ''}`}>
                   <label className="flex items-start gap-2.5 cursor-pointer select-none text-xs text-slate-600 dark:text-slate-300 leading-snug">
                     <input
                       id="checkbox-privacy-policy"
                       type="checkbox"
                       checked={agreedPolicy}
-                      onChange={(e) => setAgreedPolicy(e.target.checked)}
+                      onChange={(e) => {
+                        setAgreedPolicy(e.target.checked);
+                        clearFieldError('agreedPolicy');
+                      }}
                       className="mt-0.5 w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
                     />
                     <span>
@@ -890,6 +1034,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       </button>
                     </span>
                   </label>
+                  {fieldErrors.agreedPolicy && (
+                    <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1.5 flex items-center gap-1 pl-6 rtl:pl-0 rtl:pr-6">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      <span>{fieldErrors.agreedPolicy}</span>
+                    </p>
+                  )}
                 </div>
               </div>
             )}
