@@ -422,29 +422,71 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   return (
     <div 
       id="auth-modal-overlay"
-      className="fixed inset-0 z-40 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto"
+      className="fixed inset-0 z-40 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-xl animate-in fade-in duration-300 overflow-y-auto relative"
     >
+      {/* Decorative Background Hero Mesh Pattern & Glows */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden select-none">
+        {/* Subtle grid pattern */}
+        <div 
+          className="absolute inset-0 opacity-[0.07] dark:opacity-[0.12]"
+          style={{
+            backgroundImage: `radial-gradient(circle at 1px 1px, #38BDF8 1px, transparent 0)`,
+            backgroundSize: '32px 32px'
+          }}
+        />
+        {/* Top-center ambient glowing gradient */}
+        <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[450px] bg-gradient-to-b from-blue-500/25 via-indigo-600/15 to-transparent rounded-full blur-3xl pointer-events-none" />
+        {/* Bottom-right accent glow */}
+        <div className="absolute -bottom-32 -right-20 w-[450px] h-[450px] bg-sky-500/15 rounded-full blur-3xl pointer-events-none" />
+        {/* Bottom-left accent glow */}
+        <div className="absolute -bottom-32 -left-20 w-[450px] h-[450px] bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
+      </div>
+
       <div 
         id="auth-modal-card"
-        className={`spotlight-card w-full ${step === 'verify' ? 'max-w-md' : tab === 'signup' ? 'max-w-2xl my-6' : 'max-w-md'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden transition-all duration-300 max-h-[92vh] flex flex-col`}
+        className={`spotlight-card relative z-10 w-full ${step === 'verify' ? 'max-w-md' : tab === 'signup' ? 'max-w-2xl my-6' : 'max-w-md'} bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-slate-200/80 dark:border-white/10 rounded-3xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.7)] overflow-hidden transition-all duration-300 max-h-[92vh] flex flex-col`}
       >
         {/* Header branding */}
-        <div className="bg-gradient-to-br from-[#0F284E] via-[#1E3A8A] to-[#2563EB] p-6 sm:p-7 text-white text-center relative shrink-0">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 mb-2.5 shadow-inner">
+        <div className="bg-gradient-to-br from-[#0B1E38] via-[#0F284E] to-[#1E3A8A] p-6 sm:p-7 text-white text-center relative shrink-0 border-b border-white/10 overflow-hidden">
+          {/* Subtle header ambient pattern */}
+          <div 
+            className="absolute inset-0 opacity-10 pointer-events-none"
+            style={{
+              backgroundImage: `radial-gradient(circle at 1px 1px, #ffffff 1px, transparent 0)`,
+              backgroundSize: '20px 20px'
+            }}
+          />
+
+          {/* Logo Tag / Inner Badge */}
+          <div className="relative z-10 inline-flex items-center justify-center px-4 py-2.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 mb-3 shadow-inner hover:border-white/30 transition-all">
             {step === 'verify' ? (
-              <KeyRound className="w-6 h-6 text-sky-300 animate-pulse" />
+              <div className="flex items-center gap-2.5">
+                <img
+                  src="/assets/logo.png"
+                  alt="WISCO Logo"
+                  className="h-6 w-auto object-contain drop-shadow-sm rounded-md"
+                />
+                <KeyRound className="w-4 h-4 text-sky-300 animate-pulse ml-0.5" />
+              </div>
             ) : (
-              <span className="text-2xl font-black tracking-wider text-sky-300">W</span>
+              <img
+                src="/assets/logo.png"
+                alt="WISCO Logo"
+                className="h-7 sm:h-8 w-auto object-contain drop-shadow-sm rounded-md"
+              />
             )}
           </div>
-          <h1 className="text-2xl font-extrabold tracking-tight">WISCO</h1>
-          <p className="text-xs text-sky-200 mt-0.5 font-medium">
+
+          <h1 className="relative z-10 text-2xl font-extrabold tracking-tight flex items-center justify-center">
+            WISCO<span className="text-[#38BDF8] text-3xl leading-none">.</span>
+          </h1>
+          <p className="relative z-10 text-xs text-sky-200 mt-0.5 font-medium">
             {t.appTagline}
           </p>
 
           {/* Tab Selector (Hidden during OTP step) */}
           {step === 'form' && (
-            <div className="mt-5 flex bg-black/20 p-1 rounded-xl backdrop-blur-sm border border-white/10 max-w-sm mx-auto">
+            <div className="relative z-10 mt-5 flex bg-black/30 p-1 rounded-xl backdrop-blur-sm border border-white/10 max-w-sm mx-auto">
               <button
                 id="tab-btn-signin"
                 type="button"
