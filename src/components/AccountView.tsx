@@ -245,21 +245,16 @@ export const AccountView: React.FC<AccountViewProps> = ({
       {/* Agency Billing Profile & Locked Details */}
       <div className="spotlight-card bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
-              <Building2 className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <span>{t.agencyProfileSettings}</span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 flex items-center gap-1">
-                  <Lock className="w-2.5 h-2.5" /> {isArabic ? 'بيانات مؤكدة ومقفلة' : 'Verified & Locked'}
-                </span>
-              </h3>
-              <p className="text-xs text-slate-500">
-                {isArabic ? 'معلومات الشركة الرسمية المطبوعة على فواتير PDF الصادرة' : 'Official agency credentials printed on generated invoices'}
-              </p>
-            </div>
+          <div>
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <span>{t.agencyProfileSettings}</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 flex items-center gap-1">
+                <Lock className="w-2.5 h-2.5" /> {isArabic ? 'بيانات مؤكدة ومقفلة' : 'Verified & Locked'}
+              </span>
+            </h3>
+            <p className="text-xs text-slate-500">
+              {isArabic ? 'معلومات الشركة الرسمية المطبوعة على فواتير PDF الصادرة' : 'Official agency credentials printed on generated invoices'}
+            </p>
           </div>
 
           {saveSuccess && (
@@ -460,18 +455,13 @@ export const AccountView: React.FC<AccountViewProps> = ({
         
         {/* 1. Currency Selector */}
         <div className="spotlight-card bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
-              <Coins className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                {t.currencySetting}
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {t.currencySettingDesc}
-              </p>
-            </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+              {t.currencySetting}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {t.currencySettingDesc}
+            </p>
           </div>
 
           <select
@@ -490,18 +480,13 @@ export const AccountView: React.FC<AccountViewProps> = ({
 
         {/* 2. Language & Direction */}
         <div className="spotlight-card bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-sky-50 dark:bg-sky-950 text-sky-600 dark:text-sky-400">
-              <Globe className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                {t.languageSetting}
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {t.languageSettingDesc}
-              </p>
-            </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+              {t.languageSetting}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {t.languageSettingDesc}
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3 mt-2">
@@ -532,12 +517,9 @@ export const AccountView: React.FC<AccountViewProps> = ({
           </div>
         </div>
 
-        {/* 3. Appearance Theme */}
-        <div className="spotlight-card bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
-              {settings.darkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-            </div>
+        {/* 3. Appearance Theme - Dark Mode ON/OFF Switch */}
+        <div className="spotlight-card bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+          <div className="flex items-center justify-between gap-4">
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                 {t.appearanceSetting}
@@ -546,52 +528,81 @@ export const AccountView: React.FC<AccountViewProps> = ({
                 {t.appearanceSettingDesc}
               </p>
             </div>
+
+            {/* Status Pill */}
+            <span className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+              settings.darkMode
+                ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-sky-300 dark:border dark:border-blue-800/60'
+                : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${settings.darkMode ? 'bg-blue-600 dark:bg-sky-400 animate-pulse' : 'bg-slate-400'}`} />
+              <span>{settings.darkMode ? (t.switchOn || 'ON') : (t.switchOff || 'OFF')}</span>
+            </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 mt-2">
+          {/* Interactive Toggle Switch Row */}
+          <div 
+            id="account-dark-mode-toggle-card"
+            onClick={() => onUpdateSettings({ darkMode: !settings.darkMode })}
+            className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-4 select-none ${
+              settings.darkMode
+                ? 'bg-blue-950/30 border-blue-800/60 hover:bg-blue-950/50'
+                : 'bg-slate-50 border-slate-200 hover:bg-slate-100/80'
+            }`}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex flex-col">
+                <span className="text-xs font-bold text-slate-900 dark:text-white">
+                  {t.darkModeLabel || 'Dark Mode'}
+                </span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {settings.darkMode ? (t.darkModeActive || 'Dark Mode is ON') : (t.lightModeActive || 'Dark Mode is OFF')}
+                </span>
+              </div>
+            </div>
+
+            {/* Toggle Switch Component */}
             <button
-              id="account-btn-theme-light"
+              id="account-switch-dark-mode"
               type="button"
-              onClick={() => onUpdateSettings({ darkMode: false })}
-              className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-2 cursor-pointer ${
-                !settings.darkMode
-                  ? 'bg-[#0F284E] text-white border-[#0F284E] shadow-md'
-                  : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+              role="switch"
+              aria-checked={settings.darkMode}
+              aria-label={t.darkModeLabel || 'Dark Mode'}
+              onClick={(e) => {
+                e.stopPropagation();
+                onUpdateSettings({ darkMode: !settings.darkMode });
+              }}
+              className={`relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${
+                settings.darkMode ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'
               }`}
             >
-              <Sun className="w-3.5 h-3.5 text-amber-500" />
-              <span>{t.themeLight}</span>
-            </button>
-            <button
-              id="account-btn-theme-dark"
-              type="button"
-              onClick={() => onUpdateSettings({ darkMode: true })}
-              className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-2 cursor-pointer ${
-                settings.darkMode
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-md'
-                  : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-              }`}
-            >
-              <Moon className="w-3.5 h-3.5 text-sky-300" />
-              <span>{t.themeDark}</span>
+              <span className="sr-only">{t.darkModeLabel || 'Dark Mode'}</span>
+              <span
+                className={`pointer-events-none flex items-center justify-center h-7 w-7 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out text-slate-700 ${
+                  settings.darkMode 
+                    ? 'translate-x-6 rtl:-translate-x-6 bg-slate-900 text-sky-300' 
+                    : 'translate-x-0 rtl:translate-x-0 bg-white text-amber-500'
+                }`}
+              >
+                {settings.darkMode ? (
+                  <Moon className="w-3.5 h-3.5 text-blue-600 dark:text-sky-300" />
+                ) : (
+                  <Sun className="w-3.5 h-3.5 text-amber-500" />
+                )}
+              </span>
             </button>
           </div>
         </div>
 
         {/* 4. Storage Engine Status */}
         <div className="spotlight-card bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
-              <Database className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                {t.dataStorageMode}
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {t.storageModeSupabase}
-              </p>
-            </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+              {t.dataStorageMode}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {t.storageModeSupabase}
+            </p>
           </div>
 
           <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2">

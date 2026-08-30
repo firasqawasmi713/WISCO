@@ -294,6 +294,9 @@ export default function App() {
         onSelectTab={setCurrentTab}
         user={user}
         lang={settings.language}
+        settings={settings}
+        onUpdateSettings={handleUpdateSettings}
+        onSignOut={handleSignOut}
         onOpenPrivacyPolicy={() => setPrivacyPolicyOpen(true)}
       />
 
