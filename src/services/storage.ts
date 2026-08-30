@@ -218,6 +218,15 @@ export const StorageService = {
     }
   },
 
+  // Request password reset email
+  async resetPassword(email: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      return await SupabaseService.resetPasswordForEmail(email);
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Failed to request password reset.' };
+    }
+  },
+
   // Account Login via Supabase Auth + Sync from Supabase tables
   async loginUser(
     email: string,

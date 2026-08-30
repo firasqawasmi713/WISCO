@@ -18,7 +18,9 @@ import {
   ArrowRight,
   RefreshCw,
   Sparkles,
-  Info
+  Info,
+  LogIn,
+  UserPlus
 } from 'lucide-react';
 import { TRANSLATIONS } from '../constants/translations';
 import { LanguageCode, UserProfile, RegisterPayload } from '../types';
@@ -44,7 +46,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const modalBodyRef = useRef<HTMLDivElement | null>(null);
 
   const [tab, setTab] = useState<'signin' | 'signup'>('signin');
-  const [step, setStep] = useState<'form' | 'verify'>('form');
+  const [step, setStep] = useState<'form' | 'verify' | 'forgot'>('form');
   
   // Credentials
   const [email, setEmail] = useState('');
@@ -74,6 +76,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendLoading, setResendLoading] = useState(false);
   const [resendNotice, setResendNotice] = useState<string | null>(null);
+  const [resetSuccess, setResetSuccess] = useState<string | null>(null);
   
   // State
   const [error, setError] = useState<string | null>(null);
@@ -419,6 +422,43 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
+  // Handle forgot password request
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setFieldErrors({});
+    setResetSuccess(null);
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      const msg = t.authErrorEmailReq;
+      setFieldErrors({ email: msg });
+      setError(msg);
+      return;
+    } else if (!isValidEmail(trimmedEmail)) {
+      const msg = t.authErrorEmailReq;
+      setFieldErrors({ email: msg });
+      setError(msg);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await StorageService.resetPassword(trimmedEmail);
+      setLoading(false);
+
+      if (!res.success) {
+        setError(res.error || (isArabic ? 'فشل إرسال رابط إعادة التعيين.' : 'Failed to send password reset link.'));
+        return;
+      }
+
+      setResetSuccess(t.resetLinkSentSuccess || (isArabic ? 'تم إرسال رابط إعادة تعيين كلمة المرور! يرجى مراجعة بريدك الإلكتروني.' : 'Password reset link sent! Please check your email inbox.'));
+    } catch (err: any) {
+      setLoading(false);
+      setError(err.message || (isArabic ? 'حدث خطأ أثناء إرسال الرابط.' : 'An error occurred while sending reset link.'));
+    }
+  };
+
   return (
     <div 
       id="auth-modal-overlay"
@@ -426,51 +466,65 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     >
       <div 
         id="auth-modal-card"
-        className={`spotlight-card w-full ${step === 'verify' ? 'max-w-md' : tab === 'signup' ? 'max-w-2xl my-6' : 'max-w-md'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden transition-all duration-300 max-h-[92vh] flex flex-col`}
+        className={`spotlight-card w-full ${step === 'verify' || step === 'forgot' ? 'max-w-md' : tab === 'signup' ? 'max-w-2xl my-6' : 'max-w-md'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden transition-all duration-300 max-h-[92vh] flex flex-col`}
       >
-        {/* Header branding */}
-        <div className="bg-gradient-to-br from-[#0F284E] via-[#1E3A8A] to-[#2563EB] p-6 sm:p-7 text-white text-center relative shrink-0">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 mb-2.5 shadow-inner">
-            {step === 'verify' ? (
-              <KeyRound className="w-6 h-6 text-sky-300 animate-pulse" />
-            ) : (
-              <span className="text-2xl font-black tracking-wider text-sky-300">W</span>
+        {/* Header branding with background image */}
+        <div className="relative p-6 sm:p-7 text-white text-center shrink-0 overflow-hidden border-b border-white/10 bg-[#0F284E]">
+          {/* Header Background Image */}
+          <div className="absolute inset-0 z-0 select-none pointer-events-none">
+            <img
+              src="/assets/Man_wearing_traditional_clothing_2K_202608301457.jpeg"
+              alt="Header Background"
+              className="w-full h-full object-cover object-center scale-105"
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+            />
+            {/* Rich gradient overlay ensuring text legibility and brand alignment */}
+            <div className="absolute inset-0 bg-gradient-to-b from-[#0B1E38]/80 via-[#0F284E]/85 to-[#1E3A8A]/95 backdrop-blur-[1px]" />
+          </div>
+
+          <div className="relative z-10 flex flex-col items-center justify-center">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight drop-shadow-sm flex items-center justify-center gap-2">
+              {(step === 'verify' || step === 'forgot') && <KeyRound className="w-5 h-5 text-sky-300 animate-pulse" />}
+              WISCO
+            </h1>
+            <p className="text-xs sm:text-sm text-sky-200 mt-1 font-medium drop-shadow">
+              {t.appTagline}
+            </p>
+
+            {/* Tab Selector (Hidden during OTP step) */}
+            {step === 'form' && (
+              <div className="mt-5 grid grid-cols-2 gap-1.5 bg-black/40 p-1.5 rounded-2xl backdrop-blur-md border border-white/20 w-full max-w-xs sm:max-w-sm mx-auto shadow-inner">
+                <button
+                  id="tab-btn-signin"
+                  type="button"
+                  onClick={() => { setTab('signin'); setError(null); }}
+                  className={`w-full py-2.5 px-4 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 ${
+                    tab === 'signin' 
+                      ? 'bg-white text-[#0F284E] shadow-md scale-[1.02]' 
+                      : 'text-white/80 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>{t.signIn}</span>
+                </button>
+                <button
+                  id="tab-btn-signup"
+                  type="button"
+                  onClick={() => { setTab('signup'); setError(null); }}
+                  className={`w-full py-2.5 px-4 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 ${
+                    tab === 'signup' 
+                      ? 'bg-white text-[#0F284E] shadow-md scale-[1.02]' 
+                      : 'text-white/80 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>{t.signUp}</span>
+                </button>
+              </div>
             )}
           </div>
-          <h1 className="text-2xl font-extrabold tracking-tight">WISCO</h1>
-          <p className="text-xs text-sky-200 mt-0.5 font-medium">
-            {t.appTagline}
-          </p>
-
-          {/* Tab Selector (Hidden during OTP step) */}
-          {step === 'form' && (
-            <div className="mt-5 flex bg-black/20 p-1 rounded-xl backdrop-blur-sm border border-white/10 max-w-sm mx-auto">
-              <button
-                id="tab-btn-signin"
-                type="button"
-                onClick={() => { setTab('signin'); setError(null); }}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                  tab === 'signin' 
-                    ? 'bg-white text-[#0F284E] shadow-md' 
-                    : 'text-white/80 hover:text-white'
-                }`}
-              >
-                {t.signIn}
-              </button>
-              <button
-                id="tab-btn-signup"
-                type="button"
-                onClick={() => { setTab('signup'); setError(null); }}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                  tab === 'signup' 
-                    ? 'bg-white text-[#0F284E] shadow-md' 
-                    : 'text-white/80 hover:text-white'
-                }`}
-              >
-                {t.signUp}
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Scrollable Form Body */}
@@ -495,8 +549,116 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
           )}
 
-          {/* STEP 2: 6-DIGIT OTP VERIFICATION SCREEN */}
-          {step === 'verify' ? (
+          {/* STEP 3: FORGOT PASSWORD RESET SCREEN */}
+          {step === 'forgot' ? (
+            <form onSubmit={handleForgotPassword} className="space-y-5">
+              <div className="text-center space-y-2">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/60 rounded-full text-xs font-semibold text-blue-700 dark:text-sky-300">
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>{t.forgotPasswordTitle}</span>
+                </div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  {t.forgotPasswordTitle}
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-sm mx-auto">
+                  {t.forgotPasswordDesc}
+                </p>
+              </div>
+
+              {resetSuccess ? (
+                <div className="p-5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 rounded-2xl text-center space-y-3 animate-in fade-in">
+                  <CheckCircle2 className="w-9 h-9 text-emerald-500 mx-auto" />
+                  <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300 leading-relaxed">
+                    {resetSuccess}
+                  </p>
+                  <div className="pt-2">
+                    <button
+                      id="btn-forgot-back-success"
+                      type="button"
+                      onClick={() => {
+                        setStep('form');
+                        setTab('signin');
+                        setError(null);
+                        setResetSuccess(null);
+                      }}
+                      className="px-4 py-2.5 bg-[#0F284E] hover:bg-[#1E3A8A] dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-md"
+                    >
+                      {isArabic ? <ArrowRight className="w-3.5 h-3.5" /> : <ArrowLeft className="w-3.5 h-3.5" />}
+                      <span>{t.backToSignIn}</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                      {t.email}
+                    </label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 rtl:left-auto rtl:right-3.5" />
+                      <input
+                        id="auth-forgot-input-email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          clearFieldError('email');
+                        }}
+                        placeholder={t.enterEmail}
+                        className={`w-full pl-10 pr-4 rtl:pl-4 rtl:pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 transition-all ${
+                          fieldErrors.email 
+                            ? 'border-red-500 focus:ring-red-500/30 bg-red-50/20 dark:bg-red-950/20' 
+                            : 'border-slate-200 dark:border-slate-700 focus:ring-blue-600'
+                        }`}
+                      />
+                    </div>
+                    {fieldErrors.email && (
+                      <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        <span>{fieldErrors.email}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    id="btn-submit-forgot-password"
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-3.5 px-4 bg-[#0F284E] hover:bg-[#1E3A8A] dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold text-sm rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-[0.99]"
+                  >
+                    {loading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>{t.sendingResetLink}</span>
+                      </>
+                    ) : (
+                      <>
+                        <KeyRound className="w-4 h-4" />
+                        <span>{t.sendResetLink}</span>
+                      </>
+                    )}
+                  </button>
+
+                  <div className="text-center pt-2">
+                    <button
+                      id="btn-back-to-signin-from-forgot"
+                      type="button"
+                      onClick={() => {
+                        setStep('form');
+                        setTab('signin');
+                        setError(null);
+                        setFieldErrors({});
+                      }}
+                      className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors cursor-pointer font-medium"
+                    >
+                      {isArabic ? <ArrowRight className="w-3.5 h-3.5" /> : <ArrowLeft className="w-3.5 h-3.5" />}
+                      <span>{t.backToSignIn}</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </form>
+          ) : step === 'verify' ? (
             <form onSubmit={handleVerifyOtp} className="space-y-6">
               <div className="text-center space-y-2">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/60 rounded-full text-xs font-semibold text-blue-700 dark:text-sky-300">
@@ -642,9 +804,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                    {t.password}
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      {t.password}
+                    </label>
+                    <button
+                      id="btn-forgot-password-trigger"
+                      type="button"
+                      onClick={() => {
+                        setStep('forgot');
+                        setError(null);
+                        setFieldErrors({});
+                        setResetSuccess(null);
+                      }}
+                      className="text-xs font-semibold text-blue-600 dark:text-sky-400 hover:text-blue-700 dark:hover:text-sky-300 hover:underline cursor-pointer transition-colors"
+                    >
+                      {t.forgotPassword}
+                    </button>
+                  </div>
                   <div className="relative">
                     <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 rtl:left-auto rtl:right-3.5" />
                     <input
@@ -1049,7 +1226,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               id="btn-auth-submit"
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-[#0F284E] hover:bg-[#1E3A8A] dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold text-sm rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-4"
+              className="w-full py-3.5 px-4 bg-[#0F284E] hover:bg-[#1E3A8A] dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold text-sm rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-4 active:scale-[0.99]"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -1060,6 +1237,35 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </>
               )}
             </button>
+
+            {/* Quick Switch Prompt */}
+            <div className="text-center pt-2">
+              {tab === 'signin' ? (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {isArabic ? 'ليس لديك حساب؟' : "Don't have an account?"}{' '}
+                  <button
+                    id="link-switch-to-signup"
+                    type="button"
+                    onClick={() => { setTab('signup'); setError(null); }}
+                    className="font-bold text-blue-600 dark:text-sky-400 hover:text-blue-700 dark:hover:text-sky-300 underline cursor-pointer"
+                  >
+                    {t.signUp}
+                  </button>
+                </p>
+              ) : (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {isArabic ? 'لديك حساب بالفعل؟' : 'Already have an account?'}{' '}
+                  <button
+                    id="link-switch-to-signin"
+                    type="button"
+                    onClick={() => { setTab('signin'); setError(null); }}
+                    className="font-bold text-blue-600 dark:text-sky-400 hover:text-blue-700 dark:hover:text-sky-300 underline cursor-pointer"
+                  >
+                    {t.signIn}
+                  </button>
+                </p>
+              )}
+            </div>
           </form>
           )}
 

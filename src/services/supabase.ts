@@ -450,6 +450,24 @@ export const SupabaseService = {
     }
   },
 
+  async resetPasswordForEmail(email: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const cleanEmail = email.trim().toLowerCase();
+      const redirectUrl = typeof window !== 'undefined' ? window.location.origin : undefined;
+      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+        redirectTo: redirectUrl
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+      return { success: true };
+    } catch (e: any) {
+      console.error('Reset password error:', e);
+      return { success: false, error: e.message || 'Failed to send password reset email.' };
+    }
+  },
+
   async getCurrentSessionUser(): Promise<UserProfile | null> {
     try {
       const { data: { session } } = await supabase.auth.getSession();
