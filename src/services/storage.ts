@@ -11,6 +11,7 @@ import {
 import { 
   supabase, 
   SupabaseService, 
+  generateUUID,
   mapClientFromRow, 
   mapClientToRow, 
   mapInvoiceFromRow, 
@@ -39,11 +40,7 @@ export function generateInvoiceForClient(
   invoiceNumSequence: number = 1,
   defaultPaymentTerms?: string
 ): Invoice {
-  const paddedSeq = String(invoiceNumSequence).padStart(3, '0');
-  const now = new Date();
-  const year = now.getFullYear();
-  const invoiceNumber = `INV-${year}-${paddedSeq}`;
-  
+  const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
   const issueDate = client.startDate || new Date().toISOString().split('T')[0];
   let dueDate = client.dueDate;
   if (!dueDate) {
@@ -52,20 +49,20 @@ export function generateInvoiceForClient(
     dueDate = d.toISOString().split('T')[0];
   }
 
-  const subtotal = client.cost;
+  const subtotal = Number(client.cost || (client as any).total_billed || (client as any).budget || 0);
   const taxRate = 0;
-  const taxAmount = (subtotal * taxRate) / 100;
-  const totalAmount = subtotal + taxAmount;
+  const taxAmount = 0;
+  const totalAmount = subtotal;
 
   return {
-    id: `inv-${client.id.replace('cli-', '')}-${Date.now().toString().slice(-4)}`,
+    id: generateUUID(),
     invoiceNumber,
     clientId: client.id,
     clientName: client.name,
-    companyName: client.companyName,
-    clientEmail: client.email,
-    clientPhone: client.phone,
-    clientAddress: client.address,
+    companyName: client.companyName || '',
+    clientEmail: client.email || '',
+    clientPhone: client.phone || '',
+    clientAddress: client.address || '',
     projectName: client.project,
     projectCategory: client.category,
     issueDate,
@@ -73,19 +70,19 @@ export function generateInvoiceForClient(
     items: [
       {
         id: 'item-1',
-        description: `${client.project} - Complete Professional Scope & Deliverables`,
+        description: `${client.project} - Project Scope & Deliverables`,
         quantity: 1,
-        unitPrice: client.cost,
-        total: client.cost
+        unitPrice: subtotal,
+        total: subtotal
       }
     ],
     subtotal,
     taxRate,
     taxAmount,
-    operatingExpenses: client.operatingExpenses,
+    operatingExpenses: client.operatingExpenses || 0,
     totalAmount,
-    status: client.status === 'Completed' ? 'Paid' : 'Pending',
-    notes: client.notes || 'Thank you for your business. Please remit payment via bank transfer.',
+    status: 'Pending',
+    notes: client.notes || 'Thank you for your business. Please remit payment as agreed.',
     paymentTerms: defaultPaymentTerms || 'Payment due within 30 days of invoice date.',
     createdAt: client.createdAt || new Date().toISOString()
   };
@@ -190,9 +187,10 @@ export const StorageService = {
     const uid = explicitUid || user?.id || this.getCurrentUid();
     if (!uid) throw new Error('Not authenticated: please sign in to create clients.');
 
+    const newClientId = generateUUID();
     const newClient: ClientProject = {
       ...clientData,
-      id: `cli-${Date.now()}`,
+      id: newClientId,
       createdAt: new Date().toISOString()
     };
 
@@ -210,19 +208,83 @@ export const StorageService = {
 
     const savedClient = mapClientFromRow(data);
 
-    // Auto-generate and persist corresponding invoice in Supabase
-    try {
-      const existingInvoices = await this.getInvoices(uid);
-      const autoInvoice = generateInvoiceForClient(savedClient, existingInvoices.length + 1);
-      const invoiceRow = mapInvoiceToRow(autoInvoice, uid);
-      await supabase.from('invoices').insert([invoiceRow]);
-    } catch (invErr) {
-      console.warn('Auto invoice generation notice:', invErr);
-    }
-
     // Refresh cache
     const updated = [savedClient, ...this.getCachedClients(uid).filter(c => c.id !== savedClient.id)];
     this.saveCachedClients(updated, uid);
+
+    // Auto-generate and persist corresponding invoice in Supabase as requested:
+    // id: crypto.randomUUID()
+    // user_id: user.id
+    // client_id: createdClient.id
+    // client_name: createdClient.name
+    // invoice_number: `INV-${Date.now().toString().slice(-6)}`
+    // amount: Number(createdClient.total_billed || createdClient.budget || 0)
+    // status: 'Pending'
+    // issue_date: new Date().toISOString().split('T')[0]
+    // due_date: createdClient.due_date || createdClient.deadline || null
+    try {
+      const invoiceId = generateUUID();
+      const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
+      const issueDate = new Date().toISOString().split('T')[0];
+      const dueDate = savedClient.dueDate || null;
+      const amountVal = Number(savedClient.cost || (savedClient as any).total_billed || (savedClient as any).budget || 0);
+
+      const invoicePayload = {
+        id: invoiceId,
+        user_id: uid,
+        client_id: savedClient.id,
+        client_name: savedClient.name,
+        company_name: savedClient.companyName || '',
+        invoice_number: invoiceNumber,
+        amount: amountVal,
+        total_amount: amountVal,
+        subtotal: amountVal,
+        status: 'Pending',
+        issue_date: issueDate,
+        due_date: dueDate,
+        project_name: savedClient.project || '',
+        project_category: savedClient.category || 'General',
+        items: [
+          {
+            id: 'item-1',
+            description: `${savedClient.project || 'Project'} - Initial Scope`,
+            quantity: 1,
+            unitPrice: amountVal,
+            total: amountVal
+          }
+        ],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      const { data: invData, error: invErr } = await supabase
+        .from('invoices')
+        .insert([invoicePayload])
+        .select()
+        .maybeSingle();
+
+      if (invErr) {
+        console.warn('Initial invoice insert payload notice, trying mapper fallback:', invErr.message);
+        const altInvoice = generateInvoiceForClient(savedClient);
+        const altPayload = mapInvoiceToRow(altInvoice, uid);
+        const { data: altData } = await supabase
+          .from('invoices')
+          .insert([altPayload])
+          .select()
+          .single();
+        if (altData) {
+          const invObj = mapInvoiceFromRow(altData);
+          const cachedInvoices = [invObj, ...this.getCachedInvoices(uid).filter(i => i.id !== invObj.id)];
+          this.saveCachedInvoices(cachedInvoices, uid);
+        }
+      } else if (invData) {
+        const invObj = mapInvoiceFromRow(invData);
+        const cachedInvoices = [invObj, ...this.getCachedInvoices(uid).filter(i => i.id !== invObj.id)];
+        this.saveCachedInvoices(cachedInvoices, uid);
+      }
+    } catch (invErr) {
+      console.warn('Auto invoice generation notice:', invErr);
+    }
 
     return savedClient;
   },
@@ -482,27 +544,111 @@ export const StorageService = {
   async addSpending(spendingData: Omit<Spending, 'id' | 'createdAt'>, explicitUid?: string | null): Promise<Spending> {
     const { data: { user } } = await supabase.auth.getUser();
     const uid = explicitUid || user?.id || this.getCurrentUid();
-    if (!uid) throw new Error('Not authenticated');
+    if (!uid) throw new Error('Not authenticated: please sign in to add spending.');
 
-    const newSpending: Spending = {
-      ...spendingData,
-      id: `sp-${Date.now()}`,
-      createdAt: new Date().toISOString()
+    const newId = generateUUID();
+    const titleVal = spendingData.item.trim();
+    const vendorVal = spendingData.resellerName.trim();
+    const amountVal = Number(spendingData.amount || 0);
+    const categoryVal = spendingData.category || 'Other';
+    const dateVal = spendingData.date || new Date().toISOString().split('T')[0];
+    const notesVal = spendingData.notes || spendingData.purpose || '';
+    const currencyVal = 'USD';
+    const statusVal = 'Paid';
+
+    // Primary database payload matching columns:
+    // (id, user_id, title, amount, category, date, vendor, status, notes, currency)
+    const primaryPayload = {
+      id: newId,
+      user_id: uid,
+      title: titleVal,
+      amount: amountVal,
+      category: categoryVal,
+      date: dateVal,
+      vendor: vendorVal,
+      status: statusVal,
+      notes: notesVal,
+      currency: currencyVal,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     };
 
-    const row = mapSpendingToRow(newSpending, uid);
-    const { data, error } = await supabase
-      .from('spendings')
-      .insert([row])
-      .select()
-      .single();
+    let insertedRow: any = null;
 
-    if (error) {
-      console.error('Supabase addSpending error:', error.message);
-      throw error;
+    const { data: primaryData, error: primaryErr } = await supabase
+      .from('spendings')
+      .insert([primaryPayload])
+      .select()
+      .maybeSingle();
+
+    if (!primaryErr && primaryData) {
+      insertedRow = primaryData;
+    } else {
+      console.warn('Spendings insert attempt 1 notice:', primaryErr?.message);
+      
+      // Fallback schema payload (item, reseller_name, payment_method, purpose, receipt_number)
+      const fallbackPayload = {
+        id: newId,
+        user_id: uid,
+        item: titleVal,
+        purpose: spendingData.purpose || notesVal,
+        amount: amountVal,
+        reseller_name: vendorVal,
+        category: categoryVal,
+        date: dateVal,
+        payment_method: spendingData.paymentMethod || 'Credit Card',
+        receipt_number: spendingData.receiptNumber || '',
+        notes: notesVal,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      const { data: fbData, error: fbErr } = await supabase
+        .from('spendings')
+        .insert([fallbackPayload])
+        .select()
+        .maybeSingle();
+
+      if (!fbErr && fbData) {
+        insertedRow = fbData;
+      } else {
+        console.warn('Spendings insert attempt 2 notice:', fbErr?.message);
+        // Attempt 3: standard mapped row
+        const mappedRow = mapSpendingToRow({
+          ...spendingData,
+          id: newId,
+          createdAt: new Date().toISOString()
+        }, uid);
+
+        const { data: minData, error: minErr } = await supabase
+          .from('spendings')
+          .insert([mappedRow])
+          .select()
+          .single();
+
+        if (minErr) {
+          console.error('All spendings insert attempts failed:', minErr);
+          throw minErr;
+        }
+        insertedRow = minData;
+      }
     }
 
-    const saved = mapSpendingFromRow(data);
+    const saved = mapSpendingFromRow(insertedRow || {
+      id: newId,
+      title: titleVal,
+      item: titleVal,
+      amount: amountVal,
+      category: categoryVal,
+      date: dateVal,
+      vendor: vendorVal,
+      reseller_name: vendorVal,
+      notes: notesVal,
+      payment_method: spendingData.paymentMethod || 'Credit Card',
+      receipt_number: spendingData.receiptNumber || '',
+      created_at: new Date().toISOString()
+    });
+
     const updated = [saved, ...this.getCachedSpendings(uid).filter(s => s.id !== saved.id)];
     this.saveCachedSpendings(updated, uid);
     return saved;
@@ -513,21 +659,71 @@ export const StorageService = {
     const uid = explicitUid || user?.id || this.getCurrentUid();
     if (!uid) throw new Error('Not authenticated');
 
-    const row = mapSpendingToRow(spending, uid);
-    const { data, error } = await supabase
+    const titleVal = spending.item.trim();
+    const vendorVal = spending.resellerName.trim();
+    const amountVal = Number(spending.amount || 0);
+    const categoryVal = spending.category || 'Other';
+    const dateVal = spending.date || new Date().toISOString().split('T')[0];
+    const notesVal = spending.notes || spending.purpose || '';
+
+    const payload1 = {
+      title: titleVal,
+      amount: amountVal,
+      category: categoryVal,
+      date: dateVal,
+      vendor: vendorVal,
+      status: 'Paid',
+      notes: notesVal,
+      currency: 'USD',
+      updated_at: new Date().toISOString()
+    };
+
+    let updatedRow: any = null;
+
+    const { data: data1, error: err1 } = await supabase
       .from('spendings')
-      .update(row)
+      .update(payload1)
       .eq('user_id', uid)
       .eq('id', spending.id)
       .select()
-      .single();
+      .maybeSingle();
 
-    if (error) {
-      console.error('Supabase updateSpending error:', error.message);
-      throw error;
+    if (!err1 && data1) {
+      updatedRow = data1;
+    } else {
+      const payload2 = {
+        item: titleVal,
+        purpose: spending.purpose || notesVal,
+        amount: amountVal,
+        reseller_name: vendorVal,
+        category: categoryVal,
+        date: dateVal,
+        payment_method: spending.paymentMethod || 'Credit Card',
+        receipt_number: spending.receiptNumber || '',
+        notes: notesVal,
+        updated_at: new Date().toISOString()
+      };
+
+      const { data: data2, error: err2 } = await supabase
+        .from('spendings')
+        .update(payload2)
+        .eq('user_id', uid)
+        .eq('id', spending.id)
+        .select()
+        .maybeSingle();
+
+      if (!err2 && data2) {
+        updatedRow = data2;
+      }
     }
 
-    const updated = mapSpendingFromRow(data);
+    const updated = mapSpendingFromRow(updatedRow || {
+      ...spending,
+      title: titleVal,
+      vendor: vendorVal,
+      amount: amountVal
+    });
+
     const cached = this.getCachedSpendings(uid).map(s => s.id === updated.id ? updated : s);
     this.saveCachedSpendings(cached, uid);
     return updated;

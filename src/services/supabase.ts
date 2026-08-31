@@ -48,24 +48,40 @@ export const supabase: SupabaseClient =
         }
       });
 
+export function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    try {
+      return crypto.randomUUID();
+    } catch {
+      // ignore and fallback
+    }
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 // ==========================================
 // Database Row Mappers (Postgres <-> TypeScript)
 // ==========================================
 
 export function mapClientFromRow(row: any): ClientProject {
+  const cost = Number(row.cost ?? row.total_billed ?? row.budget ?? row.amount ?? 0);
   return {
     id: String(row.id || ''),
-    name: row.name || '',
+    name: row.name || row.client_name || '',
     companyName: row.company_name || row.companyName || '',
-    email: row.email || '',
-    phone: row.phone || '',
-    address: row.address || '',
-    project: row.project || '',
+    email: row.email || row.client_email || '',
+    phone: row.phone || row.client_phone || '',
+    address: row.address || row.client_address || '',
+    project: row.project || row.project_name || row.projectName || '',
     category: row.category || 'General',
-    cost: Number(row.cost || 0),
+    cost: cost,
     operatingExpenses: Number(row.operating_expenses || row.operatingExpenses || 0),
-    startDate: row.start_date || row.startDate || new Date().toISOString().split('T')[0],
-    dueDate: row.due_date || row.end_date || row.dueDate || '',
+    startDate: row.start_date || row.startDate || row.issue_date || new Date().toISOString().split('T')[0],
+    dueDate: row.due_date || row.end_date || row.dueDate || row.deadline || '',
     status: row.status || 'In Progress',
     notes: row.notes || '',
     createdAt: row.created_at || row.createdAt || new Date().toISOString()
@@ -73,25 +89,36 @@ export function mapClientFromRow(row: any): ClientProject {
 }
 
 export function mapClientToRow(client: Partial<ClientProject>, userId: string): Record<string, any> {
-  const cleanId = client.id || `cli-${Date.now()}`;
+  const cleanId = client.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(client.id) 
+    ? client.id 
+    : generateUUID();
   const startDate = client.startDate || new Date().toISOString().split('T')[0];
   const dueDate = client.dueDate || null;
+  const costVal = Number(client.cost || (client as any).total_billed || (client as any).budget || 0);
   
   return {
     id: cleanId,
     user_id: userId,
     name: client.name || '',
+    client_name: client.name || '',
     company_name: client.companyName || '',
     email: client.email || '',
+    client_email: client.email || '',
     phone: client.phone || '',
+    client_phone: client.phone || '',
     address: client.address || '',
+    client_address: client.address || '',
     project: client.project || '',
+    project_name: client.project || '',
     category: client.category || 'General',
-    cost: Number(client.cost || 0),
+    cost: costVal,
+    total_billed: costVal,
+    budget: costVal,
     operating_expenses: Number(client.operatingExpenses ?? 0),
     start_date: startDate,
     due_date: dueDate,
     end_date: dueDate,
+    deadline: dueDate,
     status: client.status || 'In Progress',
     notes: client.notes || '',
     created_at: client.createdAt || new Date().toISOString(),
@@ -112,9 +139,13 @@ export function mapInvoiceFromRow(row: any): Invoice {
     items = [];
   }
 
+  const rawAmount = Number(row.amount ?? row.total_amount ?? row.subtotal ?? 0);
+  const subtotal = Number(row.subtotal ?? rawAmount);
+  const totalAmount = Number(row.total_amount ?? (rawAmount || subtotal));
+
   return {
     id: String(row.id || ''),
-    invoiceNumber: row.invoice_number || row.invoiceNumber || 'INV-001',
+    invoiceNumber: row.invoice_number || row.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
     clientId: String(row.client_id || row.clientId || ''),
     clientName: row.client_name || row.clientName || '',
     companyName: row.company_name || row.companyName || '',
@@ -125,12 +156,20 @@ export function mapInvoiceFromRow(row: any): Invoice {
     projectCategory: row.project_category || row.projectCategory || '',
     issueDate: row.issue_date || row.issueDate || new Date().toISOString().split('T')[0],
     dueDate: row.due_date || row.dueDate || '',
-    items,
-    subtotal: Number(row.subtotal || 0),
+    items: items.length > 0 ? items : [
+      {
+        id: 'item-1',
+        description: row.project_name || 'Project Deliverables',
+        quantity: 1,
+        unitPrice: totalAmount,
+        total: totalAmount
+      }
+    ],
+    subtotal: subtotal || totalAmount,
     taxRate: Number(row.tax_rate ?? row.taxRate ?? 0),
     taxAmount: Number(row.tax_amount ?? row.taxAmount ?? 0),
     operatingExpenses: Number(row.operating_expenses ?? row.operatingExpenses ?? 0),
-    totalAmount: Number(row.total_amount ?? row.totalAmount ?? 0),
+    totalAmount: totalAmount || subtotal,
     status: row.status || 'Pending',
     notes: row.notes || '',
     paymentTerms: row.payment_terms || row.paymentTerms || '',
@@ -139,11 +178,17 @@ export function mapInvoiceFromRow(row: any): Invoice {
 }
 
 export function mapInvoiceToRow(invoice: Partial<Invoice>, userId: string): Record<string, any> {
-  const cleanId = invoice.id || `inv-${Date.now()}`;
+  const cleanId = invoice.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(invoice.id)
+    ? invoice.id
+    : generateUUID();
+  const total = Number(invoice.totalAmount ?? invoice.subtotal ?? (invoice as any).amount ?? 0);
+  const issueDate = invoice.issueDate || new Date().toISOString().split('T')[0];
+  const dueDate = invoice.dueDate || null;
+
   return {
     id: cleanId,
     user_id: userId,
-    invoice_number: invoice.invoiceNumber || 'INV-001',
+    invoice_number: invoice.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`,
     client_id: invoice.clientId || null,
     client_name: invoice.clientName || '',
     company_name: invoice.companyName || '',
@@ -152,52 +197,72 @@ export function mapInvoiceToRow(invoice: Partial<Invoice>, userId: string): Reco
     client_address: invoice.clientAddress || '',
     project_name: invoice.projectName || '',
     project_category: invoice.projectCategory || '',
-    issue_date: invoice.issueDate || new Date().toISOString().split('T')[0],
-    due_date: invoice.dueDate || null,
-    items: invoice.items || [],
-    subtotal: Number(invoice.subtotal || 0),
+    issue_date: issueDate,
+    due_date: dueDate,
+    amount: total,
+    total_amount: total,
+    subtotal: Number(invoice.subtotal || total),
     tax_rate: Number(invoice.taxRate ?? 0),
     tax_amount: Number(invoice.taxAmount ?? 0),
     operating_expenses: Number(invoice.operatingExpenses ?? 0),
-    total_amount: Number(invoice.totalAmount || 0),
     status: invoice.status || 'Pending',
     notes: invoice.notes || '',
     payment_terms: invoice.paymentTerms || '',
+    items: invoice.items || [],
     created_at: invoice.createdAt || new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
 }
 
 export function mapSpendingFromRow(row: any): Spending {
+  const title = row.title || row.item || row.name || 'Expense Item';
+  const vendor = row.vendor || row.reseller_name || row.resellerName || 'Vendor';
+  const amount = Number(row.amount || row.cost || 0);
+  const date = row.date || (row.created_at ? row.created_at.split('T')[0] : new Date().toISOString().split('T')[0]);
+  const category = row.category || 'Other';
+  const paymentMethod = row.payment_method || row.paymentMethod || 'Credit Card';
+  const receiptNumber = row.receipt_number || row.receiptNumber || '';
+  const notes = row.notes || row.purpose || '';
+
   return {
     id: String(row.id || ''),
-    item: row.item || '',
-    purpose: row.purpose || '',
-    amount: Number(row.amount || 0),
-    resellerName: row.reseller_name || row.resellerName || '',
-    category: row.category || 'Other',
-    date: row.date || new Date().toISOString().split('T')[0],
-    paymentMethod: row.payment_method || row.paymentMethod || 'Credit Card',
-    receiptNumber: row.receipt_number || row.receiptNumber || '',
-    notes: row.notes || '',
+    item: title,
+    purpose: notes,
+    amount,
+    resellerName: vendor,
+    category,
+    date,
+    paymentMethod,
+    receiptNumber,
+    notes,
     createdAt: row.created_at || row.createdAt || new Date().toISOString()
   };
 }
 
 export function mapSpendingToRow(spending: Partial<Spending>, userId: string): Record<string, any> {
-  const cleanId = spending.id || `sp-${Date.now()}`;
+  const cleanId = spending.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(spending.id)
+    ? spending.id
+    : generateUUID();
+  const title = (spending as any).title || spending.item || '';
+  const vendor = (spending as any).vendor || spending.resellerName || '';
+  const amount = Number(spending.amount || 0);
+  const category = spending.category || 'Other';
+  const date = spending.date || new Date().toISOString().split('T')[0];
+  const status = (spending as any).status || 'Paid';
+  const notes = spending.notes || spending.purpose || '';
+  const currency = (spending as any).currency || 'USD';
+
   return {
     id: cleanId,
     user_id: userId,
-    item: spending.item || '',
-    purpose: spending.purpose || '',
-    amount: Number(spending.amount || 0),
-    reseller_name: spending.resellerName || '',
-    category: spending.category || 'Other',
-    date: spending.date || new Date().toISOString().split('T')[0],
-    payment_method: spending.paymentMethod || 'Credit Card',
-    receipt_number: spending.receiptNumber || '',
-    notes: spending.notes || '',
+    title,
+    amount,
+    category,
+    date,
+    vendor,
+    status,
+    notes,
+    currency,
     created_at: spending.createdAt || new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
