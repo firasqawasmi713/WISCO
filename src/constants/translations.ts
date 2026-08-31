@@ -309,7 +309,10 @@ export const TRANSLATIONS = {
     viewOnCalendar: "View on Calendar",
     totalEvents: "Total Items",
     activeTasks: "Active Tasks",
-    pinnedCount: "Pinned"
+    pinnedCount: "Pinned",
+    upcomingSchedule: "Upcoming Schedule",
+    noUpcomingEvents: "No upcoming events or tasks scheduled",
+    goToCalendar: "Go to Calendar"
   },
   ar: {
     // App Brand & Navigation
@@ -621,6 +624,9 @@ export const TRANSLATIONS = {
     viewOnCalendar: "عرض في التقويم",
     totalEvents: "إجمالي العناصر",
     activeTasks: "المهام النشطة",
-    pinnedCount: "المثبتة"
+    pinnedCount: "المثبتة",
+    upcomingSchedule: "الجدول القادم",
+    noUpcomingEvents: "لا توجد فعاليات أو مهام مجدولة قادمة",
+    goToCalendar: "الذهاب إلى التقويم"
   }
 };

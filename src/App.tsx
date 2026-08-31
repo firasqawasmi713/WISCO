@@ -640,6 +640,8 @@ export default function App() {
                   clients={clients}
                   invoices={invoices}
                   spendings={spendings}
+                  events={events}
+                  userId={user?.uid}
                   currency={settings.currency}
                   lang={settings.language}
                   darkMode={settings.darkMode}
@@ -650,6 +652,8 @@ export default function App() {
                   onOpenAddClient={handleOpenAddClient}
                   onAddSpending={handleOpenAddSpending}
                   onOpenAddSpending={handleOpenAddSpending}
+                  onAddEvent={handleOpenAddEvent}
+                  onToggleCompletedEvent={handleToggleCompletedEvent}
                 />
               )}
 

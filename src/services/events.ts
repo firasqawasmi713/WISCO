@@ -184,6 +184,53 @@ export const EventsService = {
     return cached;
   },
 
+  // Fetch upcoming scheduled items (start_time >= today / now)
+  async getUpcomingEvents(limit = 5, userId?: string | null): Promise<CalendarEvent[]> {
+    const cached = this.getCachedEvents(userId);
+    const nowISO = new Date().toISOString();
+    const todayStr = nowISO.split('T')[0];
+
+    try {
+      let query = supabase.from('events').select('*');
+      if (userId) {
+        query = query.eq('user_id', userId);
+      }
+      const { data, error } = await query
+        .gte('start_time', todayStr)
+        .order('start_time', { ascending: true })
+        .limit(limit);
+
+      if (!error && data) {
+        return data.map(mapSupabaseRowToEvent);
+      }
+
+      if (error) {
+        let altQuery = supabase.from('calendar_events').select('*');
+        if (userId) {
+          altQuery = altQuery.eq('user_id', userId);
+        }
+        const altRes = await altQuery
+          .gte('start_time', todayStr)
+          .order('start_time', { ascending: true })
+          .limit(limit);
+        if (!altRes.error && altRes.data) {
+          return altRes.data.map(mapSupabaseRowToEvent);
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase upcoming events fetch error:', err);
+    }
+
+    return cached
+      .filter(e => (e.startDate >= todayStr) || (e.endDate && e.endDate >= todayStr))
+      .sort((a, b) => {
+        const aTime = `${a.startDate}T${a.startTime || '00:00'}`;
+        const bTime = `${b.startDate}T${b.startTime || '00:00'}`;
+        return aTime.localeCompare(bTime);
+      })
+      .slice(0, limit);
+  },
+
   async addEvent(eventData: Omit<CalendarEvent, 'id' | 'createdAt'>, userId?: string | null): Promise<CalendarEvent> {
     const newEvent: CalendarEvent = {
       ...eventData,

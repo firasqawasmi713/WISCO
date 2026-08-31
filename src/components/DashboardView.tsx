@@ -15,9 +15,10 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { Chart, registerables } from 'chart.js';
-import { ClientProject, Invoice, Spending, CurrencyCode, LanguageCode, NavTab, ActivityLog } from '../types';
+import { ClientProject, Invoice, Spending, CalendarEvent, CurrencyCode, LanguageCode, NavTab, ActivityLog } from '../types';
 import { TRANSLATIONS } from '../constants/translations';
 import { formatCurrency, CURRENCIES } from '../constants/currencies';
+import { UpcomingScheduleWidget } from './UpcomingScheduleWidget';
 
 Chart.register(...registerables);
 
@@ -25,9 +26,11 @@ interface DashboardViewProps {
   clients: ClientProject[];
   invoices: Invoice[];
   spendings: Spending[];
+  events?: CalendarEvent[];
   activities?: ActivityLog[];
   currency: CurrencyCode;
   lang: LanguageCode;
+  userId?: string | null;
   darkMode?: boolean;
   isSyncing?: boolean;
   onRefresh?: () => void;
@@ -36,14 +39,18 @@ interface DashboardViewProps {
   onOpenAddClient?: () => void;
   onAddSpending?: () => void;
   onOpenAddSpending?: () => void;
+  onAddEvent?: () => void;
+  onToggleCompletedEvent?: (eventId: string, isCompleted: boolean) => Promise<void> | void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   clients,
   invoices,
   spendings,
+  events,
   currency,
   lang,
+  userId,
   darkMode = false,
   isSyncing = false,
   onRefresh,
@@ -51,7 +58,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onAddClient,
   onOpenAddClient,
   onAddSpending,
-  onOpenAddSpending
+  onOpenAddSpending,
+  onAddEvent,
+  onToggleCompletedEvent
 }) => {
   const handleAddClientAction = onAddClient || onOpenAddClient || (() => onNavigate('clients'));
   const handleAddSpendingAction = onAddSpending || onOpenAddSpending || (() => onNavigate('spendings'));
@@ -421,61 +430,40 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Recent Activity & Latest Clients Feed */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Operational Streams & Schedule Grid (Clients, Spendings, Upcoming Schedule) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Latest Clients */}
         <div 
           id="dash-latest-clients-card"
           className="spotlight-card bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm flex flex-col justify-between"
         >
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-sky-50 dark:bg-sky-950 text-sky-600 dark:text-sky-400">
-                <PieIcon className="w-4 h-4" />
-              </div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                {t.projectBreakdown}
-              </h3>
-            </div>
-          </div>
-
-          <div className="h-56 sm:h-64 w-full relative my-auto">
-            <canvas ref={categoryChartRef} id="canvas-category-breakdown" />
-          </div>
-
-          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400">
-            {clients.length} active client project streams
-          </div>
-        </div>
-      </div>
-
-      {/* Recent Activity & Latest Clients Feed */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Latest Clients */}
-        <div 
-          id="dash-latest-clients-card"
-          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm flex flex-col justify-between"
-        >
           <div>
             <div className="flex items-center justify-between mb-6">
-              <h4 className="font-bold text-lg text-[#0F284E] dark:text-white">
-                {t.recentClients}
-              </h4>
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-orange-50 dark:bg-orange-950 text-orange-600 dark:text-orange-400">
+                  <Users className="w-4 h-4" />
+                </div>
+                <h4 className="font-bold text-lg text-[#0F284E] dark:text-white leading-tight">
+                  {t.recentClients}
+                </h4>
+              </div>
               <button
                 id="dash-btn-view-all-clients-link"
+                type="button"
                 onClick={() => onNavigate('clients')}
                 className="text-xs font-bold text-blue-600 dark:text-sky-400 hover:underline flex items-center gap-1 cursor-pointer"
               >
                 <span>{t.viewAll}</span>
-                <ArrowUpRight className="w-3.5 h-3.5" />
+                <ArrowUpRight className="w-3.5 h-3.5 rtl:rotate-[-90deg]" />
               </button>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               {clients.length === 0 ? (
-                <div className="py-8 text-center text-slate-400 dark:text-slate-500 text-xs">
+                <div className="py-8 px-4 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-800/20 text-slate-400 dark:text-slate-500 text-xs">
                   <p>{isArabic ? 'لا توجد مشاريع عملاء مسجلة حتى الآن' : 'No client projects onboarded yet.'}</p>
                   <button
+                    type="button"
                     onClick={handleAddClientAction}
                     className="mt-2 text-blue-600 dark:text-sky-400 font-bold hover:underline cursor-pointer"
                   >
@@ -498,23 +486,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   return (
                     <div
                       key={client.id}
-                      className="flex items-center justify-between gap-3 p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                      className="flex items-center justify-between gap-3 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800/80 bg-slate-50/40 dark:bg-slate-800/40 hover:bg-slate-100/60 dark:hover:bg-slate-800/70 transition-all"
                     >
-                      <div className="flex items-center space-x-3 rtl:space-x-reverse overflow-hidden">
-                        <div className={`w-10 h-10 rounded-xl ${colorClass} flex items-center justify-center font-bold text-xs shrink-0`}>
+                      <div className="flex items-center space-x-3 rtl:space-x-reverse overflow-hidden min-w-0">
+                        <div className={`w-9 h-9 rounded-xl ${colorClass} flex items-center justify-center font-bold text-xs shrink-0`}>
                           {initials}
                         </div>
-                        <div className="flex-1 overflow-hidden">
-                          <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">
+                        <div className="flex-1 overflow-hidden min-w-0">
+                          <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 truncate">
                             {client.name}
                           </p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                             {client.companyName} • {client.project}
                           </p>
                         </div>
                       </div>
 
-                      <p className="text-sm font-bold text-[#0F284E] dark:text-sky-300 shrink-0">
+                      <p className="text-xs sm:text-sm font-bold text-[#0F284E] dark:text-sky-300 shrink-0">
                         {formatCurrency(client.cost, currency, isArabic)}
                       </p>
                     </div>
@@ -526,10 +514,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           <button
             id="dash-btn-view-all-clients"
+            type="button"
             onClick={() => onNavigate('clients')}
-            className="mt-6 w-full py-3 bg-slate-50 dark:bg-slate-800/80 text-[#0F284E] dark:text-sky-300 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 uppercase tracking-widest transition-all cursor-pointer"
+            className="mt-6 w-full py-3 bg-slate-50 dark:bg-slate-800/80 text-[#0F284E] dark:text-sky-300 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2"
           >
-            {isArabic ? 'عرض كافة العملاء' : 'View All Clients'}
+            <span>{isArabic ? 'عرض كافة العملاء' : 'View All Clients'}</span>
+            <ArrowUpRight className="w-3.5 h-3.5 rtl:rotate-[-90deg]" />
           </button>
         </div>
 
@@ -540,24 +530,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         >
           <div>
             <div className="flex items-center justify-between mb-6">
-              <h4 className="font-bold text-lg text-[#0F284E] dark:text-white">
-                {t.recentSpendings}
-              </h4>
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400">
+                  <Wallet className="w-4 h-4" />
+                </div>
+                <h4 className="font-bold text-lg text-[#0F284E] dark:text-white leading-tight">
+                  {t.recentSpendings}
+                </h4>
+              </div>
               <button
                 id="dash-btn-view-all-spendings-link"
+                type="button"
                 onClick={() => onNavigate('spendings')}
                 className="text-xs font-bold text-blue-600 dark:text-sky-400 hover:underline flex items-center gap-1 cursor-pointer"
               >
                 <span>{t.viewAll}</span>
-                <ArrowUpRight className="w-3.5 h-3.5" />
+                <ArrowUpRight className="w-3.5 h-3.5 rtl:rotate-[-90deg]" />
               </button>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               {spendings.length === 0 ? (
-                <div className="py-8 text-center text-slate-400 dark:text-slate-500 text-xs">
+                <div className="py-8 px-4 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-800/20 text-slate-400 dark:text-slate-500 text-xs">
                   <p>{isArabic ? 'لا توجد مصاريف مسجلة حتى الآن' : 'No direct spendings logged yet.'}</p>
                   <button
+                    type="button"
                     onClick={handleAddSpendingAction}
                     className="mt-2 text-rose-600 dark:text-rose-400 font-bold hover:underline cursor-pointer"
                   >
@@ -568,24 +565,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 spendings.slice(0, 4).map((spending) => (
                   <div
                     key={spending.id}
-                    className="flex items-center justify-between gap-3 p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                    className="flex items-center justify-between gap-3 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800/80 bg-slate-50/40 dark:bg-slate-800/40 hover:bg-slate-100/60 dark:hover:bg-slate-800/70 transition-all"
                   >
-                    <div className="flex items-center space-x-3 rtl:space-x-reverse overflow-hidden">
-                      <div className="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-950/70 text-rose-600 dark:text-rose-300 flex items-center justify-center font-bold text-xs shrink-0">
-                        <Wallet className="w-5 h-5" />
+                    <div className="flex items-center space-x-3 rtl:space-x-reverse overflow-hidden min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-rose-100 dark:bg-rose-950/70 text-rose-600 dark:text-rose-300 flex items-center justify-center font-bold text-xs shrink-0">
+                        <Wallet className="w-4 h-4" />
                       </div>
-                      <div className="flex-1 overflow-hidden">
-                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">
+                      <div className="flex-1 overflow-hidden min-w-0">
+                        <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 truncate">
                           {spending.item}
                         </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                           {spending.resellerName} • {spending.category}
                         </p>
                       </div>
                     </div>
 
                     <div className="text-right rtl:text-left shrink-0">
-                      <p className="text-sm font-bold text-rose-600 dark:text-rose-400">
+                      <p className="text-xs sm:text-sm font-bold text-rose-600 dark:text-rose-400">
                         -{formatCurrency(spending.amount, currency, isArabic)}
                       </p>
                       <p className="text-[10px] text-slate-400">
@@ -600,12 +597,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           <button
             id="dash-btn-view-all-spendings"
+            type="button"
             onClick={() => onNavigate('spendings')}
-            className="mt-6 w-full py-3 bg-slate-50 dark:bg-slate-800/80 text-[#0F284E] dark:text-sky-300 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 uppercase tracking-widest transition-all cursor-pointer"
+            className="mt-6 w-full py-3 bg-slate-50 dark:bg-slate-800/80 text-[#0F284E] dark:text-sky-300 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2"
           >
-            {isArabic ? 'عرض سجل المصاريف' : 'View All Spendings'}
+            <span>{isArabic ? 'عرض سجل المصاريف' : 'View All Spendings'}</span>
+            <ArrowUpRight className="w-3.5 h-3.5 rtl:rotate-[-90deg]" />
           </button>
         </div>
+
+        {/* Upcoming Schedule Widget */}
+        <UpcomingScheduleWidget
+          events={events}
+          userId={userId}
+          lang={lang}
+          onNavigate={onNavigate}
+          onAddEvent={onAddEvent || handleAddClientAction}
+          onToggleCompleted={onToggleCompletedEvent}
+        />
       </div>
     </div>
   );
