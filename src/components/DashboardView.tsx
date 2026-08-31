@@ -19,6 +19,12 @@ import { ClientProject, Invoice, Spending, CalendarEvent, CurrencyCode, Language
 import { TRANSLATIONS } from '../constants/translations';
 import { formatCurrency, CURRENCIES } from '../constants/currencies';
 import { UpcomingScheduleWidget } from './UpcomingScheduleWidget';
+import {
+  KpiCardsSkeleton,
+  RevenueExpensesChartSkeleton,
+  ProjectBreakdownChartSkeleton,
+  OperationalFeedSkeleton
+} from './SkeletonLoaders';
 
 Chart.register(...registerables);
 
@@ -31,6 +37,7 @@ interface DashboardViewProps {
   currency: CurrencyCode;
   lang: LanguageCode;
   userId?: string | null;
+  isLoading?: boolean;
   darkMode?: boolean;
   isSyncing?: boolean;
   onRefresh?: () => void;
@@ -51,6 +58,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   currency,
   lang,
   userId,
+  isLoading = false,
   darkMode = false,
   isSyncing = false,
   onRefresh,
@@ -309,308 +317,328 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* 4 Core Dynamic KPI Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-        {/* Total Revenue */}
-        <div 
-          id="kpi-card-total-revenue"
-          className="spotlight-card bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 transition-all hover:shadow-md"
-        >
-          <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">
-            {t.totalRevenue}
-          </p>
-          <h3 className="text-2xl sm:text-3xl font-bold text-[#0F284E] dark:text-white tracking-tight">
-            {formatCurrency(totalRevenue, currency, isArabic)}
-          </h3>
-          <p className="text-emerald-500 dark:text-emerald-400 text-xs font-bold mt-2 flex items-center gap-1">
-            <span>↑</span>
-            <span>{clients.length} {t.clients} • Active Contracts</span>
-          </p>
-        </div>
+      {isLoading ? (
+        <KpiCardsSkeleton />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+          {/* Total Revenue */}
+          <div 
+            id="kpi-card-total-revenue"
+            className="spotlight-card bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 transition-all hover:shadow-md"
+          >
+            <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">
+              {t.totalRevenue}
+            </p>
+            <h3 className="text-2xl sm:text-3xl font-bold text-[#0F284E] dark:text-white tracking-tight">
+              {formatCurrency(totalRevenue, currency, isArabic)}
+            </h3>
+            <p className="text-emerald-500 dark:text-emerald-400 text-xs font-bold mt-2 flex items-center gap-1">
+              <span>↑</span>
+              <span>{clients.length} {t.clients} • Active Contracts</span>
+            </p>
+          </div>
 
-        {/* Total Direct Spendings */}
-        <div 
-          id="kpi-card-total-spendings"
-          className="spotlight-card bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 transition-all hover:shadow-md"
-        >
-          <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">
-            {t.totalSpendings}
-          </p>
-          <h3 className="text-2xl sm:text-3xl font-bold text-[#0F284E] dark:text-white tracking-tight">
-            {formatCurrency(totalSpendings, currency, isArabic)}
-          </h3>
-          <p className="text-slate-400 dark:text-slate-400 text-xs font-bold mt-2">
-            {spendings.length} active ledger items
-          </p>
-        </div>
+          {/* Total Direct Spendings */}
+          <div 
+            id="kpi-card-total-spendings"
+            className="spotlight-card bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 transition-all hover:shadow-md"
+          >
+            <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">
+              {t.totalSpendings}
+            </p>
+            <h3 className="text-2xl sm:text-3xl font-bold text-[#0F284E] dark:text-white tracking-tight">
+              {formatCurrency(totalSpendings, currency, isArabic)}
+            </h3>
+            <p className="text-slate-400 dark:text-slate-400 text-xs font-bold mt-2">
+              {spendings.length} active ledger items
+            </p>
+          </div>
 
-        {/* Operating Expenses */}
-        <div 
-          id="kpi-card-operating-expenses"
-          className="spotlight-card bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 transition-all hover:shadow-md"
-        >
-          <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">
-            {t.totalOperatingExpenses}
-          </p>
-          <h3 className="text-2xl sm:text-3xl font-bold text-[#0F284E] dark:text-white tracking-tight">
-            {formatCurrency(totalOperatingExpenses, currency, isArabic)}
-          </h3>
-          <p className="text-slate-400 dark:text-slate-400 text-xs font-bold mt-2 truncate">
-            Scope & Deliverable Overhead
-          </p>
-        </div>
+          {/* Operating Expenses */}
+          <div 
+            id="kpi-card-operating-expenses"
+            className="spotlight-card bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 transition-all hover:shadow-md"
+          >
+            <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">
+              {t.totalOperatingExpenses}
+            </p>
+            <h3 className="text-2xl sm:text-3xl font-bold text-[#0F284E] dark:text-white tracking-tight">
+              {formatCurrency(totalOperatingExpenses, currency, isArabic)}
+            </h3>
+            <p className="text-slate-400 dark:text-slate-400 text-xs font-bold mt-2 truncate">
+              Scope & Deliverable Overhead
+            </p>
+          </div>
 
-        {/* Net Profit - Featured Dark Card */}
-        <div 
-          id="kpi-card-net-profit"
-          className="spotlight-card bg-[#0F284E] dark:bg-[#071326] p-6 rounded-2xl shadow-lg border border-slate-800 dark:border-slate-800 text-white transition-all hover:shadow-xl"
-        >
-          <p className="text-slate-300 text-xs font-bold uppercase tracking-wider mb-2">
-            {t.netProfit}
-          </p>
-          <h3 className="text-2xl sm:text-3xl font-bold text-[#38BDF8] tracking-tight">
-            {formatCurrency(netProfit, currency, isArabic)}
-          </h3>
-          <p className="text-blue-300 text-xs font-bold mt-2">
-            Margin: {profitMarginPercent}%
-          </p>
+          {/* Net Profit - Featured Dark Card */}
+          <div 
+            id="kpi-card-net-profit"
+            className="spotlight-card bg-[#0F284E] dark:bg-[#071326] p-6 rounded-2xl shadow-lg border border-slate-800 dark:border-slate-800 text-white transition-all hover:shadow-xl"
+          >
+            <p className="text-slate-300 text-xs font-bold uppercase tracking-wider mb-2">
+              {t.netProfit}
+            </p>
+            <h3 className="text-2xl sm:text-3xl font-bold text-[#38BDF8] tracking-tight">
+              {formatCurrency(netProfit, currency, isArabic)}
+            </h3>
+            <p className="text-blue-300 text-xs font-bold mt-2">
+              Margin: {profitMarginPercent}%
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Interactive Charts Section (Chart.js) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Monthly Revenue vs. Expenses (Bar/Line) */}
-        <div 
-          id="dash-chart-revenue-expenses-card"
-          className="spotlight-card lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm"
-        >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-            <h4 className="font-bold text-lg text-[#0F284E] dark:text-white">
-              {t.revenueVsExpenses}
-            </h4>
-            <div className="flex items-center space-x-2 rtl:space-x-reverse">
-              <div className="flex items-center space-x-1.5 rtl:space-x-reverse">
-                <span className="w-3 h-3 bg-[#2563EB] rounded-full"></span>
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t.grossRevenue}</span>
+      {isLoading ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <RevenueExpensesChartSkeleton />
+          <ProjectBreakdownChartSkeleton />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Monthly Revenue vs. Expenses (Bar/Line) */}
+          <div 
+            id="dash-chart-revenue-expenses-card"
+            className="spotlight-card lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+              <h4 className="font-bold text-lg text-[#0F284E] dark:text-white">
+                {t.revenueVsExpenses}
+              </h4>
+              <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                <div className="flex items-center space-x-1.5 rtl:space-x-reverse">
+                  <span className="w-3 h-3 bg-[#2563EB] rounded-full"></span>
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t.grossRevenue}</span>
+                </div>
+                <div className="flex items-center space-x-1.5 rtl:space-x-reverse ml-3 rtl:mr-3">
+                  <span className="w-3 h-3 bg-[#38BDF8] rounded-full"></span>
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t.totalSpendings}</span>
+                </div>
               </div>
-              <div className="flex items-center space-x-1.5 rtl:space-x-reverse ml-3 rtl:mr-3">
-                <span className="w-3 h-3 bg-[#38BDF8] rounded-full"></span>
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t.totalSpendings}</span>
-              </div>
+            </div>
+
+            <div className="h-64 sm:h-72 w-full relative">
+              <canvas ref={revExpensesChartRef} id="canvas-rev-expenses" />
             </div>
           </div>
 
-          <div className="h-64 sm:h-72 w-full relative">
-            <canvas ref={revExpensesChartRef} id="canvas-rev-expenses" />
-          </div>
-        </div>
-
-        {/* Project Breakdown (Doughnut) */}
-        <div 
-          id="dash-chart-project-breakdown-card"
-          className="spotlight-card bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-sky-50 dark:bg-sky-950 text-sky-600 dark:text-sky-400">
-                <PieIcon className="w-4 h-4" />
+          {/* Project Breakdown (Doughnut) */}
+          <div 
+            id="dash-chart-project-breakdown-card"
+            className="spotlight-card bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex flex-col justify-between"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-sky-50 dark:bg-sky-950 text-sky-600 dark:text-sky-400">
+                  <PieIcon className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  {t.projectBreakdown}
+                </h3>
               </div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                {t.projectBreakdown}
-              </h3>
+            </div>
+
+            <div className="h-56 sm:h-64 w-full relative my-auto">
+              <canvas ref={categoryChartRef} id="canvas-category-breakdown" />
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400">
+              {clients.length} active client project streams
             </div>
           </div>
-
-          <div className="h-56 sm:h-64 w-full relative my-auto">
-            <canvas ref={categoryChartRef} id="canvas-category-breakdown" />
-          </div>
-
-          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400">
-            {clients.length} active client project streams
-          </div>
         </div>
-      </div>
+      )}
 
       {/* Operational Streams & Schedule Grid (Clients, Spendings, Upcoming Schedule) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Latest Clients */}
-        <div 
-          id="dash-latest-clients-card"
-          className="spotlight-card bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm flex flex-col justify-between"
-        >
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-orange-50 dark:bg-orange-950 text-orange-600 dark:text-orange-400">
-                  <Users className="w-4 h-4" />
+        {isLoading ? (
+          <OperationalFeedSkeleton titleWidth="w-32" />
+        ) : (
+          <div 
+            id="dash-latest-clients-card"
+            className="spotlight-card bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-orange-50 dark:bg-orange-950 text-orange-600 dark:text-orange-400">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <h4 className="font-bold text-lg text-[#0F284E] dark:text-white leading-tight">
+                    {t.recentClients}
+                  </h4>
                 </div>
-                <h4 className="font-bold text-lg text-[#0F284E] dark:text-white leading-tight">
-                  {t.recentClients}
-                </h4>
+                <button
+                  id="dash-btn-view-all-clients-link"
+                  type="button"
+                  onClick={() => onNavigate('clients')}
+                  className="text-xs font-bold text-blue-600 dark:text-sky-400 hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <span>{t.viewAll}</span>
+                  <ArrowUpRight className="w-3.5 h-3.5 rtl:rotate-[-90deg]" />
+                </button>
               </div>
-              <button
-                id="dash-btn-view-all-clients-link"
-                type="button"
-                onClick={() => onNavigate('clients')}
-                className="text-xs font-bold text-blue-600 dark:text-sky-400 hover:underline flex items-center gap-1 cursor-pointer"
-              >
-                <span>{t.viewAll}</span>
-                <ArrowUpRight className="w-3.5 h-3.5 rtl:rotate-[-90deg]" />
-              </button>
+
+              <div className="space-y-3">
+                {clients.length === 0 ? (
+                  <div className="py-8 px-4 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-800/20 text-slate-400 dark:text-slate-500 text-xs">
+                    <p>{isArabic ? 'لا توجد مشاريع عملاء مسجلة حتى الآن' : 'No client projects onboarded yet.'}</p>
+                    <button
+                      type="button"
+                      onClick={handleAddClientAction}
+                      className="mt-2 text-blue-600 dark:text-sky-400 font-bold hover:underline cursor-pointer"
+                    >
+                      {isArabic ? '+ إضافة أول مشروع' : '+ Add your first client project'}
+                    </button>
+                  </div>
+                ) : (
+                  clients.slice(0, 4).map((client, idx) => {
+                    const badgeColors = [
+                      'bg-orange-100 text-orange-600 dark:bg-orange-950/70 dark:text-orange-300',
+                      'bg-purple-100 text-purple-600 dark:bg-purple-950/70 dark:text-purple-300',
+                      'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/70 dark:text-emerald-300',
+                      'bg-blue-100 text-blue-600 dark:bg-blue-950/70 dark:text-blue-300'
+                    ];
+                    const colorClass = badgeColors[idx % badgeColors.length];
+                    const initials = client.name
+                      ? client.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                      : 'CL';
+
+                    return (
+                      <div
+                        key={client.id}
+                        className="flex items-center justify-between gap-3 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800/80 bg-slate-50/40 dark:bg-slate-800/40 hover:bg-slate-100/60 dark:hover:bg-slate-800/70 transition-all"
+                      >
+                        <div className="flex items-center space-x-3 rtl:space-x-reverse overflow-hidden min-w-0">
+                          <div className={`w-9 h-9 rounded-xl ${colorClass} flex items-center justify-center font-bold text-xs shrink-0`}>
+                            {initials}
+                          </div>
+                          <div className="flex-1 overflow-hidden min-w-0">
+                            <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 truncate">
+                              {client.name}
+                            </p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                              {client.companyName} • {client.project}
+                            </p>
+                          </div>
+                        </div>
+
+                        <p className="text-xs sm:text-sm font-bold text-[#0F284E] dark:text-sky-300 shrink-0">
+                          {formatCurrency(client.cost, currency, isArabic)}
+                        </p>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
 
-            <div className="space-y-3">
-              {clients.length === 0 ? (
-                <div className="py-8 px-4 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-800/20 text-slate-400 dark:text-slate-500 text-xs">
-                  <p>{isArabic ? 'لا توجد مشاريع عملاء مسجلة حتى الآن' : 'No client projects onboarded yet.'}</p>
-                  <button
-                    type="button"
-                    onClick={handleAddClientAction}
-                    className="mt-2 text-blue-600 dark:text-sky-400 font-bold hover:underline cursor-pointer"
-                  >
-                    {isArabic ? '+ إضافة أول مشروع' : '+ Add your first client project'}
-                  </button>
-                </div>
-              ) : (
-                clients.slice(0, 4).map((client, idx) => {
-                  const badgeColors = [
-                    'bg-orange-100 text-orange-600 dark:bg-orange-950/70 dark:text-orange-300',
-                    'bg-purple-100 text-purple-600 dark:bg-purple-950/70 dark:text-purple-300',
-                    'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/70 dark:text-emerald-300',
-                    'bg-blue-100 text-blue-600 dark:bg-blue-950/70 dark:text-blue-300'
-                  ];
-                  const colorClass = badgeColors[idx % badgeColors.length];
-                  const initials = client.name
-                    ? client.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
-                    : 'CL';
+            <button
+              id="dash-btn-view-all-clients"
+              type="button"
+              onClick={() => onNavigate('clients')}
+              className="mt-6 w-full py-3 bg-slate-50 dark:bg-slate-800/80 text-[#0F284E] dark:text-sky-300 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              <span>{isArabic ? 'عرض كافة العملاء' : 'View All Clients'}</span>
+              <ArrowUpRight className="w-3.5 h-3.5 rtl:rotate-[-90deg]" />
+            </button>
+          </div>
+        )}
 
-                  return (
+        {/* Recent Spendings & Activity */}
+        {isLoading ? (
+          <OperationalFeedSkeleton titleWidth="w-36" />
+        ) : (
+          <div 
+            id="dash-recent-activity-card"
+            className="spotlight-card bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400">
+                    <Wallet className="w-4 h-4" />
+                  </div>
+                  <h4 className="font-bold text-lg text-[#0F284E] dark:text-white leading-tight">
+                    {t.recentSpendings}
+                  </h4>
+                </div>
+                <button
+                  id="dash-btn-view-all-spendings-link"
+                  type="button"
+                  onClick={() => onNavigate('spendings')}
+                  className="text-xs font-bold text-blue-600 dark:text-sky-400 hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <span>{t.viewAll}</span>
+                  <ArrowUpRight className="w-3.5 h-3.5 rtl:rotate-[-90deg]" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {spendings.length === 0 ? (
+                  <div className="py-8 px-4 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-800/20 text-slate-400 dark:text-slate-500 text-xs">
+                    <p>{isArabic ? 'لا توجد مصاريف مسجلة حتى الآن' : 'No direct spendings logged yet.'}</p>
+                    <button
+                      type="button"
+                      onClick={handleAddSpendingAction}
+                      className="mt-2 text-rose-600 dark:text-rose-400 font-bold hover:underline cursor-pointer"
+                    >
+                      {isArabic ? '+ تسجيل أول مصروف' : '+ Log your first expense'}
+                    </button>
+                  </div>
+                ) : (
+                  spendings.slice(0, 4).map((spending) => (
                     <div
-                      key={client.id}
+                      key={spending.id}
                       className="flex items-center justify-between gap-3 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800/80 bg-slate-50/40 dark:bg-slate-800/40 hover:bg-slate-100/60 dark:hover:bg-slate-800/70 transition-all"
                     >
                       <div className="flex items-center space-x-3 rtl:space-x-reverse overflow-hidden min-w-0">
-                        <div className={`w-9 h-9 rounded-xl ${colorClass} flex items-center justify-center font-bold text-xs shrink-0`}>
-                          {initials}
+                        <div className="w-9 h-9 rounded-xl bg-rose-100 dark:bg-rose-950/70 text-rose-600 dark:text-rose-300 flex items-center justify-center font-bold text-xs shrink-0">
+                          <Wallet className="w-4 h-4" />
                         </div>
                         <div className="flex-1 overflow-hidden min-w-0">
                           <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 truncate">
-                            {client.name}
+                            {spending.item}
                           </p>
                           <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                            {client.companyName} • {client.project}
+                            {spending.resellerName} • {spending.category}
                           </p>
                         </div>
                       </div>
 
-                      <p className="text-xs sm:text-sm font-bold text-[#0F284E] dark:text-sky-300 shrink-0">
-                        {formatCurrency(client.cost, currency, isArabic)}
-                      </p>
+                      <div className="text-right rtl:text-left shrink-0">
+                        <p className="text-xs sm:text-sm font-bold text-rose-600 dark:text-rose-400">
+                          -{formatCurrency(spending.amount, currency, isArabic)}
+                        </p>
+                        <p className="text-[10px] text-slate-400">
+                          {spending.date}
+                        </p>
+                      </div>
                     </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          <button
-            id="dash-btn-view-all-clients"
-            type="button"
-            onClick={() => onNavigate('clients')}
-            className="mt-6 w-full py-3 bg-slate-50 dark:bg-slate-800/80 text-[#0F284E] dark:text-sky-300 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2"
-          >
-            <span>{isArabic ? 'عرض كافة العملاء' : 'View All Clients'}</span>
-            <ArrowUpRight className="w-3.5 h-3.5 rtl:rotate-[-90deg]" />
-          </button>
-        </div>
-
-        {/* Recent Spendings & Activity */}
-        <div 
-          id="dash-recent-activity-card"
-          className="spotlight-card bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm flex flex-col justify-between"
-        >
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400">
-                  <Wallet className="w-4 h-4" />
-                </div>
-                <h4 className="font-bold text-lg text-[#0F284E] dark:text-white leading-tight">
-                  {t.recentSpendings}
-                </h4>
+                  ))
+                )}
               </div>
-              <button
-                id="dash-btn-view-all-spendings-link"
-                type="button"
-                onClick={() => onNavigate('spendings')}
-                className="text-xs font-bold text-blue-600 dark:text-sky-400 hover:underline flex items-center gap-1 cursor-pointer"
-              >
-                <span>{t.viewAll}</span>
-                <ArrowUpRight className="w-3.5 h-3.5 rtl:rotate-[-90deg]" />
-              </button>
             </div>
 
-            <div className="space-y-3">
-              {spendings.length === 0 ? (
-                <div className="py-8 px-4 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-800/20 text-slate-400 dark:text-slate-500 text-xs">
-                  <p>{isArabic ? 'لا توجد مصاريف مسجلة حتى الآن' : 'No direct spendings logged yet.'}</p>
-                  <button
-                    type="button"
-                    onClick={handleAddSpendingAction}
-                    className="mt-2 text-rose-600 dark:text-rose-400 font-bold hover:underline cursor-pointer"
-                  >
-                    {isArabic ? '+ تسجيل أول مصروف' : '+ Log your first expense'}
-                  </button>
-                </div>
-              ) : (
-                spendings.slice(0, 4).map((spending) => (
-                  <div
-                    key={spending.id}
-                    className="flex items-center justify-between gap-3 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800/80 bg-slate-50/40 dark:bg-slate-800/40 hover:bg-slate-100/60 dark:hover:bg-slate-800/70 transition-all"
-                  >
-                    <div className="flex items-center space-x-3 rtl:space-x-reverse overflow-hidden min-w-0">
-                      <div className="w-9 h-9 rounded-xl bg-rose-100 dark:bg-rose-950/70 text-rose-600 dark:text-rose-300 flex items-center justify-center font-bold text-xs shrink-0">
-                        <Wallet className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1 overflow-hidden min-w-0">
-                        <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 truncate">
-                          {spending.item}
-                        </p>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                          {spending.resellerName} • {spending.category}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="text-right rtl:text-left shrink-0">
-                      <p className="text-xs sm:text-sm font-bold text-rose-600 dark:text-rose-400">
-                        -{formatCurrency(spending.amount, currency, isArabic)}
-                      </p>
-                      <p className="text-[10px] text-slate-400">
-                        {spending.date}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+            <button
+              id="dash-btn-view-all-spendings"
+              type="button"
+              onClick={() => onNavigate('spendings')}
+              className="mt-6 w-full py-3 bg-slate-50 dark:bg-slate-800/80 text-[#0F284E] dark:text-sky-300 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              <span>{isArabic ? 'عرض سجل المصاريف' : 'View All Spendings'}</span>
+              <ArrowUpRight className="w-3.5 h-3.5 rtl:rotate-[-90deg]" />
+            </button>
           </div>
-
-          <button
-            id="dash-btn-view-all-spendings"
-            type="button"
-            onClick={() => onNavigate('spendings')}
-            className="mt-6 w-full py-3 bg-slate-50 dark:bg-slate-800/80 text-[#0F284E] dark:text-sky-300 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2"
-          >
-            <span>{isArabic ? 'عرض سجل المصاريف' : 'View All Spendings'}</span>
-            <ArrowUpRight className="w-3.5 h-3.5 rtl:rotate-[-90deg]" />
-          </button>
-        </div>
+        )}
 
         {/* Upcoming Schedule Widget */}
         <UpcomingScheduleWidget
           events={events}
           userId={userId}
           lang={lang}
+          isLoading={isLoading}
           onNavigate={onNavigate}
           onAddEvent={onAddEvent || handleAddClientAction}
           onToggleCompleted={onToggleCompletedEvent}

@@ -15,6 +15,7 @@ import {
 import { ClientProject, CurrencyCode, LanguageCode } from '../types';
 import { TRANSLATIONS } from '../constants/translations';
 import { formatCurrency } from '../constants/currencies';
+import { TableListSkeleton } from './SkeletonLoaders';
 
 interface ClientsViewProps {
   clients: ClientProject[];
@@ -24,6 +25,7 @@ interface ClientsViewProps {
   onEditClient: (client: ClientProject) => void;
   onDeleteClient: (client: ClientProject) => void;
   onViewInvoice: (clientId: string) => void;
+  isLoading?: boolean;
 }
 
 export const ClientsView: React.FC<ClientsViewProps> = ({
@@ -33,10 +35,15 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
   onAddClient,
   onEditClient,
   onDeleteClient,
-  onViewInvoice
+  onViewInvoice,
+  isLoading = false
 }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
   const isArabic = lang === 'ar';
+
+  if (isLoading) {
+    return <TableListSkeleton headersCount={5} rowsCount={5} />;
+  }
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');

@@ -6,17 +6,18 @@ import {
   Pin, 
   Check, 
   Plus, 
-  Clock, 
-  Loader2 
+  Clock 
 } from 'lucide-react';
 import { CalendarEvent, LanguageCode, NavTab } from '../types';
 import { EventsService } from '../services/events';
 import { TRANSLATIONS } from '../constants/translations';
+import { UpcomingScheduleSkeleton, SkeletonBox } from './SkeletonLoaders';
 
 interface UpcomingScheduleWidgetProps {
   events?: CalendarEvent[];
   userId?: string | null;
   lang: LanguageCode;
+  isLoading?: boolean;
   onNavigate: (tab: NavTab) => void;
   onAddEvent?: () => void;
   onToggleCompleted?: (eventId: string, isCompleted: boolean) => Promise<void> | void;
@@ -26,15 +27,17 @@ export const UpcomingScheduleWidget: React.FC<UpcomingScheduleWidgetProps> = ({
   events: propEvents,
   userId,
   lang,
+  isLoading: parentLoading,
   onNavigate,
   onAddEvent,
   onToggleCompleted
 }) => {
-  const t不易 = TRANSLATIONS[lang] || TRANSLATIONS.en;
+  const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
   const isArabic = lang === 'ar';
 
   const [upcomingItems, setUpcomingItems] = useState<CalendarEvent[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [internalLoading, setInternalLoading] = useState<boolean>(true);
+  const isLoading = parentLoading !== undefined ? parentLoading : internalLoading;
 
   // Query next 5 scheduled items directly from Supabase / EventsService
   const loadUpcomingSchedule = useCallback(async () => {
@@ -57,7 +60,7 @@ export const UpcomingScheduleWidget: React.FC<UpcomingScheduleWidgetProps> = ({
         setUpcomingItems(filtered);
       }
     } finally {
-      setIsLoading(false);
+      setInternalLoading(false);
     }
   }, [userId, propEvents]);
 
@@ -131,27 +134,31 @@ export const UpcomingScheduleWidget: React.FC<UpcomingScheduleWidgetProps> = ({
     const raw = String(type || 'event').toLowerCase();
     if (raw === 'task') {
       return {
-        label: t不易.eventTask || 'Task',
+        label: t.eventTask || 'Task',
         classes: 'bg-purple-100 text-purple-700 dark:bg-purple-950/80 dark:text-purple-300 border-purple-200 dark:border-purple-800/60'
       };
     }
     if (raw === 'milestone') {
       return {
-        label: t不易.eventMilestone || 'Milestone',
+        label: t.eventMilestone || 'Milestone',
         classes: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60'
       };
     }
     if (raw === 'deadline') {
       return {
-        label: t不易.eventDeadline || 'Deadline',
+        label: t.eventDeadline || 'Deadline',
         classes: 'bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300 border-rose-200 dark:border-rose-800/60'
       };
     }
     return {
-      label: t不易.eventEvent || 'Event',
+      label: t.eventEvent || 'Event',
       classes: 'bg-sky-100 text-sky-700 dark:bg-sky-950/80 dark:text-sky-300 border-sky-200 dark:border-sky-800/60'
     };
   };
+
+  if (isLoading) {
+    return <UpcomingScheduleSkeleton />;
+  }
 
   return (
     <div
@@ -167,7 +174,7 @@ export const UpcomingScheduleWidget: React.FC<UpcomingScheduleWidgetProps> = ({
             </div>
             <div>
               <h4 className="font-bold text-lg text-[#0F284E] dark:text-white leading-tight">
-                {t不易.upcomingSchedule || (isArabic ? 'الجدول القادم' : 'Upcoming Schedule')}
+                {t.upcomingSchedule || (isArabic ? 'الجدول القادم' : 'Upcoming Schedule')}
               </h4>
             </div>
           </div>
@@ -178,18 +185,13 @@ export const UpcomingScheduleWidget: React.FC<UpcomingScheduleWidgetProps> = ({
             onClick={() => onNavigate('events')}
             className="text-xs font-bold text-blue-600 dark:text-sky-400 hover:underline flex items-center gap-1 cursor-pointer transition-colors"
           >
-            <span>{t不易.goToCalendar || (isArabic ? 'الذهاب للتقويم' : 'Go to Calendar')}</span>
+            <span>{t.goToCalendar || (isArabic ? 'الذهاب للتقويم' : 'Go to Calendar')}</span>
             <ArrowUpRight className="w-3.5 h-3.5 rtl:rotate-[-90deg]" />
           </button>
         </div>
 
         {/* Schedule List or Empty State */}
-        {isLoading ? (
-          <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-400 dark:text-slate-500">
-            <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-            <span className="text-xs font-medium">{isArabic ? 'جاري تحميل الجدول...' : 'Loading schedule...'}</span>
-          </div>
-        ) : upcomingItems.length === 0 ? (
+        {upcomingItems.length === 0 ? (
           <div 
             id="upcoming-schedule-empty-state"
             className="py-8 px-4 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-800/20 flex flex-col items-center justify-center"
@@ -198,7 +200,7 @@ export const UpcomingScheduleWidget: React.FC<UpcomingScheduleWidgetProps> = ({
               <CalendarDays className="w-5 h-5" />
             </div>
             <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-              {t不易.noUpcomingEvents || (isArabic ? 'لا توجد فعاليات أو مهام مجدولة قادمة' : 'No upcoming events or tasks scheduled')}
+              {t.noUpcomingEvents || (isArabic ? 'لا توجد فعاليات أو مهام مجدولة قادمة' : 'No upcoming events or tasks scheduled')}
             </p>
             {onAddEvent && (
               <button
@@ -208,7 +210,7 @@ export const UpcomingScheduleWidget: React.FC<UpcomingScheduleWidgetProps> = ({
                 className="mt-3.5 inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-950/70 text-blue-600 dark:text-sky-400 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-xs font-bold rounded-lg border border-blue-200/60 dark:border-blue-800/50 transition-colors cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>{t不易.addEvent || (isArabic ? 'إضافة فعالية / مهمة' : '+ Add Event')}</span>
+                <span>{t.addEvent || (isArabic ? 'إضافة فعالية / مهمة' : '+ Add Event')}</span>
               </button>
             )}
           </div>
@@ -302,7 +304,7 @@ export const UpcomingScheduleWidget: React.FC<UpcomingScheduleWidgetProps> = ({
         onClick={() => onNavigate('events')}
         className="mt-6 w-full py-3 bg-slate-50 dark:bg-slate-800/80 text-[#0F284E] dark:text-sky-300 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2"
       >
-        <span>{t不易.viewOnCalendar || (isArabic ? 'عرض كافة الفعاليات بالتقويم' : 'View Full Calendar')}</span>
+        <span>{t.viewOnCalendar || (isArabic ? 'عرض كافة الفعاليات بالتقويم' : 'View Full Calendar')}</span>
         <ArrowUpRight className="w-3.5 h-3.5 rtl:rotate-[-90deg]" />
       </button>
     </div>

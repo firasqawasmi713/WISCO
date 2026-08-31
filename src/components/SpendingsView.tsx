@@ -16,6 +16,7 @@ import {
 import { Spending, SpendingCategory, CurrencyCode, LanguageCode } from '../types';
 import { TRANSLATIONS } from '../constants/translations';
 import { formatCurrency } from '../constants/currencies';
+import { TableListSkeleton } from './SkeletonLoaders';
 
 interface SpendingsViewProps {
   spendings: Spending[];
@@ -24,6 +25,7 @@ interface SpendingsViewProps {
   onAddSpending: () => void;
   onEditSpending: (spending: Spending) => void;
   onDeleteSpending: (spending: Spending) => void;
+  isLoading?: boolean;
 }
 
 export const SpendingsView: React.FC<SpendingsViewProps> = ({
@@ -32,10 +34,15 @@ export const SpendingsView: React.FC<SpendingsViewProps> = ({
   lang,
   onAddSpending,
   onEditSpending,
-  onDeleteSpending
+  onDeleteSpending,
+  isLoading = false
 }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
   const isArabic = lang === 'ar';
+
+  if (isLoading) {
+    return <TableListSkeleton headersCount={5} rowsCount={5} />;
+  }
 
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');

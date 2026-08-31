@@ -626,106 +626,100 @@ export default function App() {
 
         {/* Dynamic Tab Content Area */}
         <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 overflow-y-auto">
-          {isLoading ? (
-            <div className="h-96 flex flex-col items-center justify-center gap-4 text-slate-500 dark:text-slate-400">
-              <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-              <p className="text-sm font-medium">
-                {settings.language === 'ar' ? 'جاري استرجاع البيانات من Supabase...' : 'Fetching live records from Supabase...'}
-              </p>
-            </div>
-          ) : (
-            <>
-              {currentTab === 'dashboard' && (
-                <DashboardView
-                  clients={clients}
-                  invoices={invoices}
-                  spendings={spendings}
-                  events={events}
-                  userId={user?.uid}
-                  currency={settings.currency}
-                  lang={settings.language}
-                  darkMode={settings.darkMode}
-                  isSyncing={isSyncing}
-                  onRefresh={() => reloadData(user?.uid)}
-                  onNavigate={setCurrentTab}
-                  onAddClient={handleOpenAddClient}
-                  onOpenAddClient={handleOpenAddClient}
-                  onAddSpending={handleOpenAddSpending}
-                  onOpenAddSpending={handleOpenAddSpending}
-                  onAddEvent={handleOpenAddEvent}
-                  onToggleCompletedEvent={handleToggleCompletedEvent}
-                />
-              )}
+          {currentTab === 'dashboard' && (
+            <DashboardView
+              clients={clients}
+              invoices={invoices}
+              spendings={spendings}
+              events={events}
+              userId={user?.uid}
+              currency={settings.currency}
+              lang={settings.language}
+              darkMode={settings.darkMode}
+              isSyncing={isSyncing}
+              isLoading={isLoading || isSyncing}
+              onRefresh={() => reloadData(user?.uid)}
+              onNavigate={setCurrentTab}
+              onAddClient={handleOpenAddClient}
+              onOpenAddClient={handleOpenAddClient}
+              onAddSpending={handleOpenAddSpending}
+              onOpenAddSpending={handleOpenAddSpending}
+              onAddEvent={handleOpenAddEvent}
+              onToggleCompletedEvent={handleToggleCompletedEvent}
+            />
+          )}
 
-              {currentTab === 'clients' && (
-                <ClientsView
-                  clients={clients}
-                  currency={settings.currency}
-                  lang={settings.language}
-                  onAddClient={handleOpenAddClient}
-                  onEditClient={handleOpenEditClient}
-                  onDeleteClient={handleDeleteClient}
-                  onViewInvoice={handleViewInvoiceForClient}
-                />
-              )}
+          {currentTab === 'clients' && (
+            <ClientsView
+              clients={clients}
+              currency={settings.currency}
+              lang={settings.language}
+              isLoading={isLoading || isSyncing}
+              onAddClient={handleOpenAddClient}
+              onEditClient={handleOpenEditClient}
+              onDeleteClient={handleDeleteClient}
+              onViewInvoice={handleViewInvoiceForClient}
+            />
+          )}
 
-              {currentTab === 'invoices' && (
-                <InvoicesView
-                  invoices={invoices}
-                  currency={settings.currency}
-                  lang={settings.language}
-                  onViewInvoice={handleViewInvoice}
-                  onUpdateStatus={handleUpdateInvoiceStatus}
-                />
-              )}
+          {currentTab === 'invoices' && (
+            <InvoicesView
+              invoices={invoices}
+              currency={settings.currency}
+              lang={settings.language}
+              isLoading={isLoading || isSyncing}
+              onViewInvoice={handleViewInvoice}
+              onUpdateStatus={handleUpdateInvoiceStatus}
+            />
+          )}
 
-              {currentTab === 'spendings' && (
-                <SpendingsView
-                  spendings={spendings}
-                  currency={settings.currency}
-                  lang={settings.language}
-                  onAddSpending={handleOpenAddSpending}
-                  onEditSpending={handleOpenEditSpending}
-                  onDeleteSpending={handleDeleteSpending}
-                />
-              )}
+          {currentTab === 'spendings' && (
+            <SpendingsView
+              spendings={spendings}
+              currency={settings.currency}
+              lang={settings.language}
+              isLoading={isLoading || isSyncing}
+              onAddSpending={handleOpenAddSpending}
+              onEditSpending={handleOpenEditSpending}
+              onDeleteSpending={handleDeleteSpending}
+            />
+          )}
 
-              {currentTab === 'events' && (
-                <EventsView
-                  events={events}
-                  onAddEvent={handleOpenAddEvent}
-                  onEditEvent={handleOpenEditEvent}
-                  onOpenCreateWithDate={handleOpenCreateWithDate}
-                  onTogglePin={handleTogglePinEvent}
-                  onToggleCompleted={handleToggleCompletedEvent}
-                  lang={settings.language}
-                />
-              )}
+          {currentTab === 'events' && (
+            <EventsView
+              events={events}
+              isLoading={isLoading || isSyncing}
+              onAddEvent={handleOpenAddEvent}
+              onEditEvent={handleOpenEditEvent}
+              onOpenCreateWithDate={handleOpenCreateWithDate}
+              onTogglePin={handleTogglePinEvent}
+              onToggleCompleted={handleToggleCompletedEvent}
+              lang={settings.language}
+            />
+          )}
 
-              {currentTab === 'reports' && (
-                <ReportsView
-                  clients={clients}
-                  invoices={invoices}
-                  spendings={spendings}
-                  currency={settings.currency}
-                  lang={settings.language}
-                  settings={settings}
-                />
-              )}
+          {currentTab === 'reports' && (
+            <ReportsView
+              clients={clients}
+              invoices={invoices}
+              spendings={spendings}
+              currency={settings.currency}
+              lang={settings.language}
+              settings={settings}
+            />
+          )}
 
-              {currentTab === 'account' && (
-                <AccountView
-                  user={user}
-                  settings={settings}
-                  onUpdateSettings={handleUpdateSettings}
-                  onSignOut={handleSignOut}
-                  onOpenPrivacyPolicy={() => setPrivacyPolicyOpen(true)}
-                  onDeleteAccount={handleDeleteAccount}
-                  onReloadAllData={() => reloadData(user?.uid)}
-                  lang={settings.language}
-                />
-              )}
-            </>
+          {currentTab === 'account' && (
+            <AccountView
+              user={user}
+              settings={settings}
+              onUpdateSettings={handleUpdateSettings}
+              onSignOut={handleSignOut}
+              onOpenPrivacyPolicy={() => setPrivacyPolicyOpen(true)}
+              onDeleteAccount={handleDeleteAccount}
+              onReloadAllData={() => reloadData(user?.uid)}
+              lang={settings.language}
+            />
           )}
         </main>
       </div>

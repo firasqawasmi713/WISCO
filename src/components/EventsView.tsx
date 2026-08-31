@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { CalendarEvent, EventType, EventPriority, LanguageCode } from '../types';
 import { TRANSLATIONS } from '../constants/translations';
+import { EventsCalendarSkeleton } from './SkeletonLoaders';
 
 interface EventsViewProps {
   events: CalendarEvent[];
@@ -28,6 +29,7 @@ interface EventsViewProps {
   onTogglePin: (eventId: string, isPinned: boolean) => void;
   onToggleCompleted: (eventId: string, isCompleted: boolean) => void;
   lang: LanguageCode;
+  isLoading?: boolean;
 }
 
 type CalendarViewMode = 'month' | 'week' | 'day';
@@ -39,10 +41,15 @@ export const EventsView: React.FC<EventsViewProps> = ({
   onOpenCreateWithDate,
   onTogglePin,
   onToggleCompleted,
-  lang
+  lang,
+  isLoading = false
 }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
   const isArabic = lang === 'ar';
+
+  if (isLoading) {
+    return <EventsCalendarSkeleton />;
+  }
 
   // Navigation & View Mode
   const [viewMode, setViewMode] = useState<CalendarViewMode>('month');

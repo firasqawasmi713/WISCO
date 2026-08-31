@@ -15,6 +15,7 @@ import { Invoice, CurrencyCode, LanguageCode, InvoiceStatus } from '../types';
 import { TRANSLATIONS } from '../constants/translations';
 import { formatCurrency } from '../constants/currencies';
 import { exportInvoiceToPdf } from '../services/pdf';
+import { TableListSkeleton } from './SkeletonLoaders';
 
 interface InvoicesViewProps {
   invoices: Invoice[];
@@ -22,6 +23,7 @@ interface InvoicesViewProps {
   lang: LanguageCode;
   onViewInvoice: (invoice: Invoice) => void;
   onUpdateStatus: (invoiceId: string, status: InvoiceStatus) => void;
+  isLoading?: boolean;
 }
 
 export const InvoicesView: React.FC<InvoicesViewProps> = ({
@@ -29,10 +31,15 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   currency,
   lang,
   onViewInvoice,
-  onUpdateStatus
+  onUpdateStatus,
+  isLoading = false
 }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
   const isArabic = lang === 'ar';
+
+  if (isLoading) {
+    return <TableListSkeleton headersCount={5} rowsCount={5} />;
+  }
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | InvoiceStatus>('ALL');
