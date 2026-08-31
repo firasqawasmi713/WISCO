@@ -8,7 +8,6 @@ import {
   Briefcase, 
   ArrowUpRight, 
   PlusCircle, 
-  Clock, 
   DollarSign, 
   Building2,
   PieChart as PieIcon,
@@ -261,10 +260,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* Welcome Banner with Quick Actions */}
       <div className="bg-gradient-to-r from-[#0F284E] via-[#1E3A8A] to-[#2563EB] rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
         <div className="relative z-10 max-w-xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-semibold text-sky-200 mb-3 border border-white/15">
-            <Clock className="w-3.5 h-3.5" />
-            <span>{t.calculatedRealtime}</span>
-          </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
             WISCO Financial Suite
           </h2>

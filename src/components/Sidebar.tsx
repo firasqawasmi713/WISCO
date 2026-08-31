@@ -57,19 +57,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {t.appTagline || 'Finance Engine'}
           </p>
         </div>
-        <span className="px-2 py-0.5 text-[10px] font-bold bg-[#2563EB]/40 text-sky-200 border border-sky-400/30 rounded-md">
-          v2.6
-        </span>
       </div>
 
       {/* Mini Financial Health Capsule */}
       <div className="mx-4 my-4 p-4 bg-white/5 border border-white/10 rounded-2xl shadow-sm">
-        <div className="flex items-center justify-between text-[11px] text-slate-300 mb-1">
+        <div className="text-[11px] text-slate-300 mb-1">
           <span className="font-semibold uppercase tracking-wider text-[10px] text-slate-400">{t.totalRevenue}</span>
-          <span className="flex items-center gap-1 text-emerald-400 font-bold text-[10px] uppercase">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            Live
-          </span>
         </div>
         <div className="text-xl font-black text-[#38BDF8] tracking-tight">
           {formatCurrency(totalRevenue, currency, isArabic)}

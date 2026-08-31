@@ -148,14 +148,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-lg sm:text-xl font-bold text-[#0F284E] dark:text-white tracking-tight leading-none">
-                {tabTitles[currentTab]?.title || t.dashboard}
-              </h1>
-              <span className="hidden sm:inline-flex px-2.5 py-0.5 bg-green-100 dark:bg-emerald-950/70 text-green-700 dark:text-emerald-300 text-[10px] font-bold rounded-full uppercase tracking-wider border border-green-200 dark:border-emerald-800/50">
-                Live Update
-              </span>
-            </div>
+            <h1 className="text-lg sm:text-xl font-bold text-[#0F284E] dark:text-white tracking-tight leading-none">
+              {tabTitles[currentTab]?.title || t.dashboard}
+            </h1>
             <p className="hidden sm:block text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
               {tabTitles[currentTab]?.sub}
             </p>
