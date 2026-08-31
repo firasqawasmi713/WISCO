@@ -1,7 +1,7 @@
 export type NavTab = 'dashboard' | 'clients' | 'invoices' | 'spendings' | 'events' | 'reports' | 'account';
 export type TabType = NavTab;
 
-export type EventType = 'event' | 'task' | 'milestone' | 'deadline';
+export type EventType = 'Event' | 'Task' | 'Meeting' | 'Other' | 'event' | 'task' | 'meeting' | 'other' | 'milestone' | 'deadline';
 export type EventPriority = 'low' | 'medium' | 'high' | 'urgent';
 
 export interface CalendarEvent {

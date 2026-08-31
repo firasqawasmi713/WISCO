@@ -65,7 +65,7 @@ export const EventModal: React.FC<EventModalProps> = ({
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [type, setType] = useState<EventType>('event');
+  const [type, setType] = useState<EventType>('Event');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [startTime, setStartTime] = useState('09:00');
@@ -89,7 +89,13 @@ export const EventModal: React.FC<EventModalProps> = ({
       if (initialEvent) {
         setTitle(initialEvent.title);
         setDescription(initialEvent.description || '');
-        setType(initialEvent.type || 'event');
+        
+        const rawType = String(initialEvent.type || '').toLowerCase();
+        if (rawType === 'task') setType('Task');
+        else if (rawType === 'meeting') setType('Meeting');
+        else if (rawType === 'other') setType('Other');
+        else setType('Event');
+
         setStartDate(initialEvent.startDate);
         setEndDate(initialEvent.endDate || initialEvent.startDate);
         setStartTime(initialEvent.startTime || '09:00');
@@ -106,7 +112,7 @@ export const EventModal: React.FC<EventModalProps> = ({
         const defaultDate = initialDate || new Date().toISOString().split('T')[0];
         setTitle('');
         setDescription('');
-        setType('event');
+        setType('Event');
         setStartDate(defaultDate);
         setEndDate(defaultDate);
         setStartTime('09:00');
@@ -136,6 +142,8 @@ export const EventModal: React.FC<EventModalProps> = ({
       return;
     }
 
+    const isTask = String(type).toLowerCase() === 'task';
+
     const payload: Omit<CalendarEvent, 'id' | 'createdAt'> | CalendarEvent = {
       ...(initialEvent ? { id: initialEvent.id, createdAt: initialEvent.createdAt } : {}),
       title: title.trim(),
@@ -150,7 +158,7 @@ export const EventModal: React.FC<EventModalProps> = ({
       color,
       priority,
       isPinned,
-      isCompleted: type === 'task' ? isCompleted : undefined,
+      isCompleted: isTask ? isCompleted : undefined,
       location: location.trim() || undefined,
       assignedTo: assignedTo.trim() || undefined
     };
@@ -220,12 +228,12 @@ export const EventModal: React.FC<EventModalProps> = ({
               {t.eventType}
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {(['event', 'task', 'milestone', 'deadline'] as EventType[]).map((itemType) => {
+              {(['Event', 'Task', 'Meeting', 'Other'] as const).map((itemType) => {
                 const isSelected = type === itemType;
                 let label = t.eventEvent;
-                if (itemType === 'task') label = t.eventTask;
-                if (itemType === 'milestone') label = t.eventMilestone;
-                if (itemType === 'deadline') label = t.eventDeadline;
+                if (itemType === 'Task') label = t.eventTask;
+                if (itemType === 'Meeting') label = t.eventMeeting;
+                if (itemType === 'Other') label = t.eventOther;
 
                 return (
                   <button
@@ -233,7 +241,6 @@ export const EventModal: React.FC<EventModalProps> = ({
                     type="button"
                     onClick={() => {
                       setType(itemType);
-                      if (itemType === 'deadline') setPriority('urgent');
                     }}
                     className={`py-2.5 px-3 rounded-xl text-xs font-semibold border transition text-center cursor-pointer ${
                       isSelected 
@@ -482,7 +489,7 @@ export const EventModal: React.FC<EventModalProps> = ({
               </div>
             </label>
 
-            {type === 'task' && (
+            {String(type).toLowerCase() === 'task' && (
               <label className="flex items-center gap-2.5 cursor-pointer select-none">
                 <input
                   type="checkbox"
