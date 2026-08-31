@@ -1,5 +1,29 @@
-export type NavTab = 'dashboard' | 'clients' | 'invoices' | 'spendings' | 'reports' | 'account';
+export type NavTab = 'dashboard' | 'clients' | 'invoices' | 'spendings' | 'events' | 'reports' | 'account';
 export type TabType = NavTab;
+
+export type EventType = 'event' | 'task' | 'milestone' | 'deadline';
+export type EventPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  description?: string;
+  type: EventType;
+  startDate: string; // YYYY-MM-DD
+  endDate?: string;   // YYYY-MM-DD
+  startTime?: string; // HH:mm
+  endTime?: string;   // HH:mm
+  allDay: boolean;
+  category: string;
+  color: string;
+  priority: EventPriority;
+  isPinned: boolean;
+  isCompleted?: boolean;
+  location?: string;
+  assignedTo?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
 
 export type CurrencyCode = 
   | 'USD' 

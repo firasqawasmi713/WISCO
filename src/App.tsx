@@ -9,11 +9,13 @@ import {
   ClientProject, 
   Invoice, 
   Spending, 
+  CalendarEvent,
   AppSettings, 
   UserProfile, 
   InvoiceStatus 
 } from './types';
 import { StorageService } from './services/storage';
+import { EventsService } from './services/events';
 import { supabase, SupabaseService } from './services/supabase';
 import { TRANSLATIONS } from './constants/translations';
 import { CheckCircle2, AlertCircle, RefreshCw, Loader2, CloudCheck } from 'lucide-react';
@@ -28,6 +30,8 @@ import { InvoicesView } from './components/InvoicesView';
 import { InvoiceDetailModal } from './components/InvoiceDetailModal';
 import { SpendingsView } from './components/SpendingsView';
 import { SpendingModal } from './components/SpendingModal';
+import { EventsView } from './components/EventsView';
+import { EventModal } from './components/EventModal';
 import { ReportsView } from './components/ReportsView';
 import { AccountView } from './components/AccountView';
 import { AuthModal } from './components/AuthModal';
@@ -43,6 +47,7 @@ export default function App() {
   const [clients, setClients] = useState<ClientProject[]>(() => StorageService.getCachedClients());
   const [invoices, setInvoices] = useState<Invoice[]>(() => StorageService.getCachedInvoices());
   const [spendings, setSpendings] = useState<Spending[]>(() => StorageService.getCachedSpendings());
+  const [events, setEvents] = useState<CalendarEvent[]>(() => EventsService.getCachedEvents(StorageService.getUser()?.uid));
 
   // Loading & Sync States
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -68,6 +73,10 @@ export default function App() {
 
   const [invoiceModalOpen, setInvoiceModalOpen] = useState<boolean>(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+
+  const [eventModalOpen, setEventModalOpen] = useState<boolean>(false);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [eventModalInitialDate, setEventModalInitialDate] = useState<string | undefined>(undefined);
 
   const [deleteConfirm, setDeleteConfirm] = useState<{
     isOpen: boolean;
@@ -116,17 +125,19 @@ export default function App() {
   const fetchSupabaseData = useCallback(async (targetUid: string) => {
     setIsSyncing(true);
     try {
-      const [dbClients, dbInvoices, dbSpendings, appSettings] = await Promise.all([
+      const [dbClients, dbInvoices, dbSpendings, appSettings, dbEvents] = await Promise.all([
         StorageService.getClients(targetUid),
         StorageService.getInvoices(targetUid),
         StorageService.getSpendings(targetUid),
-        StorageService.getSettings(targetUid)
+        StorageService.getSettings(targetUid),
+        EventsService.getEvents(targetUid)
       ]);
 
       setClients(dbClients);
       setInvoices(dbInvoices);
       setSpendings(dbSpendings);
       setSettings(appSettings);
+      setEvents(dbEvents);
     } catch (err) {
       console.warn('Supabase fetch error:', err);
     } finally {
@@ -180,6 +191,7 @@ export default function App() {
             setClients([]);
             setInvoices([]);
             setSpendings([]);
+            setEvents([]);
             setIsLoading(false);
             setAuthModalOpen(true);
           }
@@ -450,6 +462,75 @@ export default function App() {
     );
   };
 
+  // Calendar & Events Handlers
+  const handleOpenAddEvent = useCallback(() => {
+    setEditingEvent(null);
+    setEventModalInitialDate(undefined);
+    setEventModalOpen(true);
+  }, []);
+
+  const handleOpenCreateWithDate = useCallback((dateStr: string) => {
+    setEditingEvent(null);
+    setEventModalInitialDate(dateStr);
+    setEventModalOpen(true);
+  }, []);
+
+  const handleOpenEditEvent = useCallback((event: CalendarEvent) => {
+    setEditingEvent(event);
+    setEventModalInitialDate(event.startDate);
+    setEventModalOpen(true);
+  }, []);
+
+  const handleSaveEvent = useCallback(async (eventData: Omit<CalendarEvent, 'id' | 'createdAt'> | CalendarEvent) => {
+    try {
+      if ('id' in eventData && eventData.id) {
+        const updated = await EventsService.updateEvent(eventData as CalendarEvent, user?.uid);
+        setEvents(prev => prev.map(e => e.id === updated.id ? updated : e));
+        showToast(settings.language === 'ar' ? 'تم تحديث عنصر التقويم بنجاح.' : 'Calendar item updated successfully.', 'success');
+      } else {
+        const created = await EventsService.addEvent(eventData, user?.uid);
+        setEvents(prev => [created, ...prev]);
+        showToast(settings.language === 'ar' ? 'تمت إضافة العنصر إلى التقويم بنجاح.' : 'Calendar item added successfully.', 'success');
+      }
+    } catch (err) {
+      console.error('Error saving event:', err);
+      showToast(settings.language === 'ar' ? 'فشل حفظ عنصر التقويم.' : 'Failed to save calendar item.', 'error');
+    }
+  }, [user?.uid, settings.language, showToast]);
+
+  const handleDeleteEvent = useCallback(async (eventId: string) => {
+    try {
+      await EventsService.deleteEvent(eventId, user?.uid);
+      setEvents(prev => prev.filter(e => e.id !== eventId));
+      showToast(settings.language === 'ar' ? 'تم حذف العنصر من التقويم.' : 'Calendar item deleted successfully.', 'info');
+    } catch (err) {
+      console.error('Error deleting event:', err);
+      showToast(settings.language === 'ar' ? 'فشل حذف العنصر.' : 'Failed to delete calendar item.', 'error');
+    }
+  }, [user?.uid, settings.language, showToast]);
+
+  const handleTogglePinEvent = useCallback(async (eventId: string, isPinned: boolean) => {
+    try {
+      const updated = await EventsService.togglePin(eventId, isPinned, user?.uid);
+      if (updated) {
+        setEvents(prev => prev.map(e => e.id === updated.id ? updated : e));
+      }
+    } catch (err) {
+      console.error('Error toggling pin:', err);
+    }
+  }, [user?.uid]);
+
+  const handleToggleCompletedEvent = useCallback(async (eventId: string, isCompleted: boolean) => {
+    try {
+      const updated = await EventsService.toggleCompleted(eventId, isCompleted, user?.uid);
+      if (updated) {
+        setEvents(prev => prev.map(e => e.id === updated.id ? updated : e));
+      }
+    } catch (err) {
+      console.error('Error toggling completed:', err);
+    }
+  }, [user?.uid]);
+
   // Strict session & memory clearing on sign out
   const handleSignOut = async () => {
     await StorageService.logoutUser();
@@ -457,9 +538,11 @@ export default function App() {
     setClients([]);
     setInvoices([]);
     setSpendings([]);
+    setEvents([]);
     setSelectedInvoice(null);
     setEditingClient(null);
     setEditingSpending(null);
+    setEditingEvent(null);
     setCurrentTab('dashboard');
     setAuthModalOpen(true);
   };
@@ -481,9 +564,11 @@ export default function App() {
         setClients([]);
         setInvoices([]);
         setSpendings([]);
+        setEvents([]);
         setSelectedInvoice(null);
         setEditingClient(null);
         setEditingSpending(null);
+        setEditingEvent(null);
         setIsSyncing(false);
         setAuthModalOpen(true);
       }
@@ -601,6 +686,18 @@ export default function App() {
                 />
               )}
 
+              {currentTab === 'events' && (
+                <EventsView
+                  events={events}
+                  onAddEvent={handleOpenAddEvent}
+                  onEditEvent={handleOpenEditEvent}
+                  onOpenCreateWithDate={handleOpenCreateWithDate}
+                  onTogglePin={handleTogglePinEvent}
+                  onToggleCompleted={handleToggleCompletedEvent}
+                  lang={settings.language}
+                />
+              )}
+
               {currentTab === 'reports' && (
                 <ReportsView
                   clients={clients}
@@ -693,6 +790,16 @@ export default function App() {
         editingSpending={editingSpending}
         lang={settings.language}
         currency={settings.currency}
+      />
+
+      <EventModal
+        isOpen={eventModalOpen}
+        onClose={() => setEventModalOpen(false)}
+        onSave={handleSaveEvent}
+        onDelete={handleDeleteEvent}
+        initialEvent={editingEvent}
+        initialDate={eventModalInitialDate}
+        lang={settings.language}
       />
 
       <InvoiceDetailModal

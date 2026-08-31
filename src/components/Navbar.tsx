@@ -6,6 +6,7 @@ import {
   Wallet, 
   FileSpreadsheet, 
   ShieldCheck,
+  Calendar,
   Coins,
   Globe,
   Moon,
@@ -83,6 +84,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     clients: { title: t.clients, sub: t.clientsSubtitle },
     invoices: { title: t.invoices, sub: t.invoicesSubtitle },
     spendings: { title: t.spendings, sub: t.spendingsSubtitle },
+    events: { title: t.events, sub: t.eventsSubtitle },
     reports: { title: t.reports, sub: t.reportsSubtitle },
     account: { title: t.account, sub: t.accountSubtitle }
   };
@@ -92,6 +94,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'clients', label: t.clients, icon: <Users className="w-5 h-5" /> },
     { id: 'invoices', label: t.invoices, icon: <ReceiptText className="w-5 h-5" /> },
     { id: 'spendings', label: t.spendings, icon: <Wallet className="w-5 h-5" /> },
+    { id: 'events', label: t.events, icon: <Calendar className="w-5 h-5" /> },
     { id: 'reports', label: t.reports, icon: <FileSpreadsheet className="w-5 h-5" /> }
   ];
 

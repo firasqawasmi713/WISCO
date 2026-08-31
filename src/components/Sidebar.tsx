@@ -4,6 +4,7 @@ import {
   Users, 
   ReceiptText, 
   Wallet, 
+  Calendar,
   FileSpreadsheet, 
   ShieldCheck 
 } from 'lucide-react';
@@ -37,6 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'clients', label: t.clients, icon: <Users className="w-5 h-5" /> },
     { id: 'invoices', label: t.invoices, icon: <ReceiptText className="w-5 h-5" /> },
     { id: 'spendings', label: t.spendings, icon: <Wallet className="w-5 h-5" /> },
+    { id: 'events', label: t.events, icon: <Calendar className="w-5 h-5" /> },
     { id: 'reports', label: t.reports, icon: <FileSpreadsheet className="w-5 h-5" /> }
   ];
 
