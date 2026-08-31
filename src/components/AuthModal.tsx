@@ -283,7 +283,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setLoading(false);
 
         if (!res.success) {
+          console.error("Auth dispatch error:", res.error);
           setError(res.error || (isArabic ? 'حدث خطأ أثناء إنشاء الحساب.' : 'Failed to create account.'));
+          setResendNotice(null);
           modalBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
           return;
         }
@@ -296,6 +298,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           setStep('verify');
           setResendCooldown(60);
           setError(null);
+          setResendNotice(null);
           return;
         }
 
@@ -304,8 +307,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           onSuccess(res.user);
         }
       } catch (err: any) {
+        console.error("Auth dispatch error:", err);
         setLoading(false);
         setError(err.message || (isArabic ? 'حدث خطأ أثناء إنشاء الحساب.' : 'Failed to create account.'));
+        setResendNotice(null);
         modalBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
       }
     }
@@ -387,14 +392,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
       setLoading(false);
       if (!res.success || !res.user) {
+        console.error("Auth dispatch error:", res.error);
         setError(res.error || (isArabic ? 'رمز التحقق غير صحيح أو انتهت صلاحيته.' : 'Invalid or expired verification code.'));
+        setResendNotice(null);
         return;
       }
 
       onSuccess(res.user);
     } catch (err: any) {
+      console.error("Auth dispatch error:", err);
       setLoading(false);
       setError(err.message || (isArabic ? 'فشل التحقق من الرمز. يرجى المحاولة مجددًا.' : 'Verification failed. Please try again.'));
+      setResendNotice(null);
     }
   };
 
@@ -410,15 +419,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setResendLoading(false);
 
       if (!res.success) {
+        console.error("Auth dispatch error:", res.error);
         setError(res.error || (isArabic ? 'تعذر إعادة إرسال الرمز حالياً.' : 'Unable to resend code right now.'));
+        setResendNotice(null);
         return;
       }
 
       setResendCooldown(60);
-      setResendNotice(t.codeResentNotice || (isArabic ? 'تم إرسال رمز تحقق جديد بنجاح إلى بريدك الإلكتروني.' : 'A new verification code has been sent to your email.'));
+      setError(null);
+      setResendNotice(t.codeResentNotice || (isArabic ? 'تم إرسال رمز تحقق جديد بنجاح إلى بريدك الإلكتروني.' : 'A fresh 6-digit code has been sent to your email.'));
     } catch (err: any) {
+      console.error("Auth dispatch error:", err);
       setResendLoading(false);
       setError(err.message || (isArabic ? 'تعذر إعادة إرسال الرمز.' : 'Failed to resend code.'));
+      setResendNotice(null);
     }
   };
 
@@ -448,12 +462,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setLoading(false);
 
       if (!res.success) {
+        console.error("Auth dispatch error:", res.error);
         setError(res.error || (isArabic ? 'فشل إرسال رابط إعادة التعيين.' : 'Failed to send password reset link.'));
         return;
       }
 
       setResetSuccess(t.resetLinkSentSuccess || (isArabic ? 'تم إرسال رابط إعادة تعيين كلمة المرور! يرجى مراجعة بريدك الإلكتروني.' : 'Password reset link sent! Please check your email inbox.'));
     } catch (err: any) {
+      console.error("Auth dispatch error:", err);
       setLoading(false);
       setError(err.message || (isArabic ? 'حدث خطأ أثناء إرسال الرابط.' : 'An error occurred while sending reset link.'));
     }
@@ -539,7 +555,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
           )}
 
-          {resendNotice && (
+          {resendNotice && !error && (
             <div 
               id="auth-resend-banner"
               className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 rounded-xl text-xs text-emerald-700 dark:text-emerald-300 flex items-start gap-2.5"

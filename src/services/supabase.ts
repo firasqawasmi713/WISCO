@@ -343,12 +343,15 @@ export const SupabaseService = {
       });
 
       if (error) {
-        return { success: false, error: error.message };
+        console.error("Auth dispatch error:", error);
+        return { success: false, error: error.message || 'Registration failed.' };
       }
 
       const authUser = data.user;
       if (!authUser) {
-        return { success: false, error: 'Registration failed. Please try again.' };
+        const fallbackMsg = 'Registration failed. Please try again.';
+        console.error("Auth dispatch error:", fallbackMsg);
+        return { success: false, error: fallbackMsg };
       }
 
       if (data.session && authUser) {
@@ -411,12 +414,15 @@ export const SupabaseService = {
       });
 
       if (error) {
-        return { success: false, error: error.message };
+        console.error("Auth dispatch error:", error);
+        return { success: false, error: error.message || 'Verification failed.' };
       }
 
       const authUser = data.user;
       if (!authUser) {
-        return { success: false, error: 'Verification failed. Please check your 6-digit code and try again.' };
+        const fallbackMsg = 'Verification failed. Please check your 6-digit code and try again.';
+        console.error("Auth dispatch error:", fallbackMsg);
+        return { success: false, error: fallbackMsg };
       }
 
       const meta = authUser.user_metadata || {};
@@ -471,11 +477,12 @@ export const SupabaseService = {
       });
 
       if (error) {
-        return { success: false, error: error.message };
+        console.error("Auth dispatch error:", error);
+        return { success: false, error: error.message || 'Failed to resend verification code.' };
       }
       return { success: true };
     } catch (e: any) {
-      console.error('Supabase resend OTP error:', e);
+      console.error("Auth dispatch error:", e);
       return { success: false, error: e.message || 'Failed to resend verification code.' };
     }
   },
@@ -488,12 +495,15 @@ export const SupabaseService = {
       });
 
       if (error) {
+        console.error("Auth dispatch error:", error);
         return { success: false, error: error.message };
       }
 
       const authUser = data.user;
       if (!authUser) {
-        return { success: false, error: 'Authentication failed.' };
+        const fallbackMsg = 'Authentication failed.';
+        console.error("Auth dispatch error:", fallbackMsg);
+        return { success: false, error: fallbackMsg };
       }
 
       let userProfile: UserProfile = {
@@ -549,11 +559,12 @@ export const SupabaseService = {
       });
 
       if (error) {
+        console.error("Auth dispatch error:", error);
         return { success: false, error: error.message };
       }
       return { success: true };
     } catch (e: any) {
-      console.error('Reset password error:', e);
+      console.error("Auth dispatch error:", e);
       return { success: false, error: e.message || 'Failed to send password reset email.' };
     }
   },
