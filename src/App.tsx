@@ -16,7 +16,7 @@ import {
 import { StorageService } from './services/storage';
 import { supabase, SupabaseService } from './services/supabase';
 import { TRANSLATIONS } from './constants/translations';
-import { CheckCircle2, AlertCircle, RefreshCw, Loader2, CloudCheck, Cloud } from 'lucide-react';
+import { CheckCircle2, AlertCircle, RefreshCw, Loader2, CloudCheck } from 'lucide-react';
 
 // Components
 import { Sidebar } from './components/Sidebar';
@@ -37,12 +37,12 @@ import { DeleteConfirmModal } from './components/DeleteConfirmModal';
 export default function App() {
   // 1. Initial State
   const [user, setUser] = useState<UserProfile | null>(() => StorageService.getUser());
-  const [settings, setSettings] = useState<AppSettings>(() => StorageService.getSettings());
+  const [settings, setSettings] = useState<AppSettings>(() => StorageService.getCachedSettings());
   const [currentTab, setCurrentTab] = useState<TabType>('dashboard');
 
-  const [clients, setClients] = useState<ClientProject[]>(() => StorageService.getClients());
-  const [invoices, setInvoices] = useState<Invoice[]>(() => StorageService.getInvoices());
-  const [spendings, setSpendings] = useState<Spending[]>(() => StorageService.getSpendings());
+  const [clients, setClients] = useState<ClientProject[]>(() => StorageService.getCachedClients());
+  const [invoices, setInvoices] = useState<Invoice[]>(() => StorageService.getCachedInvoices());
+  const [spendings, setSpendings] = useState<Spending[]>(() => StorageService.getCachedSpendings());
 
   // Loading & Sync States
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -94,7 +94,7 @@ export default function App() {
     root.lang = settings.language;
   }, [settings.darkMode, settings.language]);
 
-  // 3b. Interactive Spotlight Glow Cursor Tracking
+  // Interactive Spotlight Glow Cursor Tracking
   useEffect(() => {
     const handlePointerMove = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null;
@@ -112,38 +112,21 @@ export default function App() {
     return () => window.removeEventListener('mousemove', handlePointerMove);
   }, []);
 
-  // Fetch all data directly from Supabase database using authenticated user's ID
+  // Central Database Fetch from Supabase using authenticated user's ID
   const fetchSupabaseData = useCallback(async (targetUid: string) => {
     setIsSyncing(true);
     try {
-      const [dbClients, dbInvoices, dbSpendings, profileAndSettings] = await Promise.all([
-        SupabaseService.fetchClients(targetUid),
-        SupabaseService.fetchInvoices(targetUid),
-        SupabaseService.fetchSpendings(targetUid),
-        SupabaseService.fetchProfileAndSettings(targetUid)
+      const [dbClients, dbInvoices, dbSpendings, appSettings] = await Promise.all([
+        StorageService.getClients(targetUid),
+        StorageService.getInvoices(targetUid),
+        StorageService.getSpendings(targetUid),
+        StorageService.getSettings(targetUid)
       ]);
 
       setClients(dbClients);
       setInvoices(dbInvoices);
       setSpendings(dbSpendings);
-
-      // Keep local storage synchronized for instant fast paint on future loads
-      StorageService.saveClients(dbClients, targetUid);
-      StorageService.saveInvoices(dbInvoices, targetUid);
-      StorageService.saveSpendings(dbSpendings, targetUid);
-
-      if (profileAndSettings.settings) {
-        setSettings(prev => {
-          const merged = { ...prev, ...profileAndSettings.settings };
-          StorageService.saveSettings(profileAndSettings.settings, targetUid);
-          return merged;
-        });
-      }
-
-      if (profileAndSettings.profile) {
-        setUser(profileAndSettings.profile);
-        StorageService.setUser(profileAndSettings.profile);
-      }
+      setSettings(appSettings);
     } catch (err) {
       console.warn('Supabase fetch error:', err);
     } finally {
@@ -152,7 +135,7 @@ export default function App() {
     }
   }, []);
 
-  // 3c. Supabase Session Lifecycle & Initial Fetch on Mount
+  // Supabase Session Lifecycle & Initial Mount Fetch
   useEffect(() => {
     let isMounted = true;
 
@@ -164,7 +147,6 @@ export default function App() {
         if (session?.user) {
           const uid = session.user.id;
           
-          // Build or retrieve user profile
           let userProfile: UserProfile = {
             uid,
             email: session.user.email || '',
@@ -192,22 +174,14 @@ export default function App() {
 
           await fetchSupabaseData(uid);
         } else {
-          // If no active auth session, load from local storage
-          const localUser = StorageService.getUser();
+          // No active auth session
           if (isMounted) {
-            if (localUser) {
-              setUser(localUser);
-              setClients(StorageService.getClients(localUser.uid));
-              setInvoices(StorageService.getInvoices(localUser.uid));
-              setSpendings(StorageService.getSpendings(localUser.uid));
-              setSettings(StorageService.getSettings(localUser.uid));
-            } else {
-              setClients(StorageService.getClients(null));
-              setInvoices(StorageService.getInvoices(null));
-              setSpendings(StorageService.getSpendings(null));
-              setSettings(StorageService.getSettings(null));
-            }
+            setUser(null);
+            setClients([]);
+            setInvoices([]);
+            setSpendings([]);
             setIsLoading(false);
+            setAuthModalOpen(true);
           }
         }
       } catch (err) {
@@ -218,7 +192,7 @@ export default function App() {
 
     initializeSessionAndData();
 
-    // Listen to Supabase auth events
+    // Listen to Supabase auth events (SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         const uid = session.user.id;
@@ -247,11 +221,6 @@ export default function App() {
     const effectiveUid = uid !== undefined ? uid : user?.uid;
     if (effectiveUid) {
       await fetchSupabaseData(effectiveUid);
-    } else {
-      setClients(StorageService.getClients(null));
-      setInvoices(StorageService.getInvoices(null));
-      setSpendings(StorageService.getSpendings(null));
-      setSettings(StorageService.getSettings(null));
     }
   };
 
@@ -269,37 +238,33 @@ export default function App() {
   const handleSaveClient = async (clientData: Omit<ClientProject, 'id' | 'createdAt'>, existingId?: string) => {
     try {
       setIsSyncing(true);
-      const sessionRes = await supabase.auth.getSession();
-      const targetUid = user?.uid || sessionRes.data.session?.user?.id || null;
+      const targetUid = user?.uid;
 
-      // 1. Optimistic & Local Storage Update
-      const savedClient = await StorageService.saveClient(clientData, existingId, targetUid);
-      setClients(StorageService.getClients(targetUid));
-      setInvoices(StorageService.getInvoices(targetUid));
-
-      // 2. Direct Supabase Database Persistence
-      if (targetUid) {
-        const insertSuccess = await SupabaseService.upsertClient(savedClient, targetUid);
-        
-        // Persist auto-generated invoice as well
-        const allInvs = StorageService.getInvoices(targetUid);
-        const relatedInv = allInvs.find(i => i.clientId === savedClient.id);
-        if (relatedInv) {
-          await SupabaseService.upsertInvoice(relatedInv, targetUid);
-        }
-
-        if (insertSuccess) {
-          showToast(
-            settings.language === 'ar' ? 'تم حفظ المشروع ومزامنته مع Supabase بنجاح' : 'Client project saved and synced to Supabase',
-            'success'
-          );
-        }
+      if (existingId) {
+        const fullClient: ClientProject = {
+          ...clientData,
+          id: existingId,
+          createdAt: editingClient?.createdAt || new Date().toISOString()
+        };
+        await StorageService.updateClient(fullClient, targetUid);
       } else {
-        showToast(
-          settings.language === 'ar' ? 'تم الحفظ محلياً' : 'Saved locally',
-          'info'
-        );
+        await StorageService.addClient(clientData, targetUid);
       }
+
+      // Re-fetch clean dataset from Supabase
+      if (targetUid) {
+        const [updatedClients, updatedInvoices] = await Promise.all([
+          StorageService.getClients(targetUid),
+          StorageService.getInvoices(targetUid)
+        ]);
+        setClients(updatedClients);
+        setInvoices(updatedInvoices);
+      }
+
+      showToast(
+        settings.language === 'ar' ? 'تم حفظ المشروع وتحديث قاعدة البيانات بنجاح' : 'Client project saved and database updated',
+        'success'
+      );
     } catch (err: any) {
       console.error('Error saving client:', err);
       showToast(
@@ -324,8 +289,14 @@ export default function App() {
           setIsSyncing(true);
           const targetUid = user?.uid;
           await StorageService.deleteClient(client.id, targetUid);
-          setClients(StorageService.getClients(targetUid));
-          setInvoices(StorageService.getInvoices(targetUid));
+          if (targetUid) {
+            const [updatedClients, updatedInvoices] = await Promise.all([
+              StorageService.getClients(targetUid),
+              StorageService.getInvoices(targetUid)
+            ]);
+            setClients(updatedClients);
+            setInvoices(updatedInvoices);
+          }
           showToast(
             settings.language === 'ar' ? 'تم حذف المشروع بنجاح' : 'Client project deleted',
             'info'
@@ -360,7 +331,10 @@ export default function App() {
       setIsSyncing(true);
       const targetUid = user?.uid;
       await StorageService.updateInvoiceStatus(invoiceId, status, targetUid);
-      setInvoices(StorageService.getInvoices(targetUid));
+      if (targetUid) {
+        const freshInvoices = await StorageService.getInvoices(targetUid);
+        setInvoices(freshInvoices);
+      }
       if (selectedInvoice && selectedInvoice.id === invoiceId) {
         setSelectedInvoice(prev => prev ? { ...prev, status } : null);
       }
@@ -389,28 +363,28 @@ export default function App() {
   const handleSaveSpending = async (spendingData: Omit<Spending, 'id' | 'createdAt'>, existingId?: string) => {
     try {
       setIsSyncing(true);
-      const sessionRes = await supabase.auth.getSession();
-      const targetUid = user?.uid || sessionRes.data.session?.user?.id || null;
+      const targetUid = user?.uid;
 
-      // 1. Optimistic & Local Storage Update
-      const savedSpending = await StorageService.saveSpending(spendingData, existingId, targetUid);
-      setSpendings(StorageService.getSpendings(targetUid));
-
-      // 2. Direct Supabase Database Persistence
-      if (targetUid) {
-        const insertSuccess = await SupabaseService.upsertSpending(savedSpending, targetUid);
-        if (insertSuccess) {
-          showToast(
-            settings.language === 'ar' ? 'تم حفظ المصروف ومزامنته مع Supabase بنجاح' : 'Spending expense saved and synced to Supabase',
-            'success'
-          );
-        }
+      if (existingId) {
+        const fullSpending: Spending = {
+          ...spendingData,
+          id: existingId,
+          createdAt: editingSpending?.createdAt || new Date().toISOString()
+        };
+        await StorageService.updateSpending(fullSpending, targetUid);
       } else {
-        showToast(
-          settings.language === 'ar' ? 'تم الحفظ محلياً' : 'Saved locally',
-          'info'
-        );
+        await StorageService.addSpending(spendingData, targetUid);
       }
+
+      if (targetUid) {
+        const freshSpendings = await StorageService.getSpendings(targetUid);
+        setSpendings(freshSpendings);
+      }
+
+      showToast(
+        settings.language === 'ar' ? 'تم حفظ المصروف ومزامنته مع Supabase بنجاح' : 'Spending expense saved and synced to Supabase',
+        'success'
+      );
     } catch (err: any) {
       console.error('Error saving spending:', err);
       showToast(
@@ -435,7 +409,10 @@ export default function App() {
           setIsSyncing(true);
           const targetUid = user?.uid;
           await StorageService.deleteSpending(spending.id, targetUid);
-          setSpendings(StorageService.getSpendings(targetUid));
+          if (targetUid) {
+            const freshSpendings = await StorageService.getSpendings(targetUid);
+            setSpendings(freshSpendings);
+          }
           showToast(
             settings.language === 'ar' ? 'تم حذف المصروف بنجاح' : 'Spending expense deleted',
             'info'
@@ -451,7 +428,7 @@ export default function App() {
 
   // 7. Account & Settings Handlers
   const handleUpdateSettings = async (newSettings: Partial<AppSettings>) => {
-    const updated = StorageService.saveSettings(newSettings, user?.uid);
+    const updated = await StorageService.updateSettings(newSettings, user?.uid);
     setSettings(updated);
     const freshUser = StorageService.getUser();
     if (freshUser) {
@@ -475,7 +452,7 @@ export default function App() {
 
   // Strict session & memory clearing on sign out
   const handleSignOut = async () => {
-    await StorageService.signOut();
+    await StorageService.logoutUser();
     setUser(null);
     setClients([]);
     setInvoices([]);
@@ -496,8 +473,10 @@ export default function App() {
         ? 'بموجب البند 6 من سياسة الخصوصية، سيتم مسح جميع بياناتك وسجلاتك المالية ومشاريعك نهائياً من قاعدة البيانات والذاكرة.'
         : 'In accordance with Section 6 of the Privacy Policy, all your clients, invoices, spendings, and profile credentials will be permanently erased from Supabase and memory.',
       onConfirm: async () => {
+        if (!user?.uid) return;
         setIsSyncing(true);
-        await StorageService.deleteAccountAndWipeAllData(user?.uid);
+        await SupabaseService.wipeAllUserData(user.uid);
+        await StorageService.logoutUser();
         setUser(null);
         setClients([]);
         setInvoices([]);
@@ -641,7 +620,7 @@ export default function App() {
                   onSignOut={handleSignOut}
                   onOpenPrivacyPolicy={() => setPrivacyPolicyOpen(true)}
                   onDeleteAccount={handleDeleteAccount}
-                  onReloadAllData={reloadData}
+                  onReloadAllData={() => reloadData(user?.uid)}
                   lang={settings.language}
                 />
               )}

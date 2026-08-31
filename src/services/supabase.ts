@@ -9,8 +9,24 @@ import {
   RegisterPayload
 } from '../types';
 
-export const SUPABASE_URL = 'https://cplbrwzfgfvqfuolfowt.supabase.co';
-export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwbGJyd3pmZ2Z2cWZ1b2xmb3d0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NTc0MjksImV4cCI6MjEwMzQzMzQyOX0.S7fMNaYKYnt7QnMI_3DGuUSFyQdbAzsKZwFfTt5Y78g';
+// Default Supabase project credentials
+const DEFAULT_SUPABASE_URL = 'https://cplbrwzfgfvqfuolfowt.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwbGJyd3pmZ2Z2cWZ1b2xmb3d0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NTc0MjksImV4cCI6MjEwMzQzMzQyOX0.S7fMNaYKYnt7QnMI_3DGuUSFyQdbAzsKZwFfTt5Y78g';
+
+export const SUPABASE_URL: string = 
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_URL) || DEFAULT_SUPABASE_URL;
+
+export const SUPABASE_ANON_KEY: string = 
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_ANON_KEY) || DEFAULT_SUPABASE_ANON_KEY;
+
+// Environment variable validation & health check
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.warn(
+    '⚠️ [WISCO Supabase Warning]: Supabase URL or Anon Key is missing. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment.'
+  );
+} else {
+  console.info('⚡ [WISCO Supabase]: Supabase client configured for PostgreSQL database connection:', SUPABASE_URL);
+}
 
 // Support both CDN window.supabase and npm module createClient
 declare global {
@@ -32,7 +48,9 @@ export const supabase: SupabaseClient =
         }
       });
 
-// Data transformers for PostgreSQL snake_case <-> TypeScript camelCase
+// ==========================================
+// Database Row Mappers (Postgres <-> TypeScript)
+// ==========================================
 
 export function mapClientFromRow(row: any): ClientProject {
   return {
@@ -47,7 +65,7 @@ export function mapClientFromRow(row: any): ClientProject {
     cost: Number(row.cost || 0),
     operatingExpenses: Number(row.operating_expenses || row.operatingExpenses || 0),
     startDate: row.start_date || row.startDate || new Date().toISOString().split('T')[0],
-    dueDate: row.due_date || row.dueDate || '',
+    dueDate: row.due_date || row.end_date || row.dueDate || '',
     status: row.status || 'In Progress',
     notes: row.notes || '',
     createdAt: row.created_at || row.createdAt || new Date().toISOString()
@@ -186,88 +204,75 @@ export function mapSpendingToRow(spending: Partial<Spending>, userId: string): R
 }
 
 export function mapProfileFromRow(row: any): { profile: UserProfile; settings: Partial<AppSettings> } {
+  const uid = row.id || row.user_id || '';
+  const email = row.email || row.company_email || '';
+  const companyName = row.company_name || 'Whislly Partner';
+  const companyAddress = row.company_address || 'Amman, Jordan';
+  const companyWebsite = row.company_website || '';
+  const companyEmail = row.company_email || email;
+  const companyPhone = row.company_phone || row.phone || '';
+  const companyLogo = row.company_logo || '';
+  const defaultPaymentTerms = row.default_payment_terms || 'Payment due within 30 days of invoice date.';
+
   const profile: UserProfile = {
-    uid: row.id || row.user_id,
-    email: row.email || '',
-    displayName: row.company_name || row.display_name || row.displayName || 'Agency Partner',
-    companyName: row.company_name || row.companyName || '',
-    companyAddress: row.company_address || row.companyAddress || '',
-    companyWebsite: row.company_website || row.companyWebsite || '',
-    companyEmail: row.company_email || row.companyEmail || row.email || '',
-    companyLogo: row.company_logo || row.companyLogo || '',
-    defaultPaymentTerms: row.default_payment_terms || row.defaultPaymentTerms || '',
-    createdAt: row.created_at || row.createdAt || new Date().toISOString(),
+    uid,
+    email,
+    displayName: companyName,
+    companyName,
+    companyAddress,
+    companyWebsite,
+    companyEmail,
+    companyLogo,
+    defaultPaymentTerms,
+    createdAt: row.created_at || new Date().toISOString(),
     agreedToPrivacyPolicy: Boolean(row.agreed_to_privacy_policy ?? true),
-    privacyPolicyAgreedAt: row.privacy_policy_agreed_at || row.created_at
+    privacyPolicyAgreedAt: row.created_at || new Date().toISOString()
   };
 
   const settings: Partial<AppSettings> = {
-    companyName: profile.companyName,
-    companyAddress: profile.companyAddress,
-    companyWebsite: profile.companyWebsite,
-    companyEmail: profile.companyEmail,
-    companyLogo: profile.companyLogo,
-    defaultPaymentTerms: profile.defaultPaymentTerms,
-    currency: row.currency || undefined,
-    language: row.language || undefined,
-    darkMode: row.dark_mode !== undefined ? Boolean(row.dark_mode) : undefined,
-    taxRate: row.tax_rate !== undefined ? Number(row.tax_rate) : undefined
+    companyName,
+    companyAddress,
+    companyWebsite,
+    companyEmail,
+    companyPhone,
+    companyLogo,
+    defaultPaymentTerms,
+    currency: row.currency || 'USD',
+    language: row.language || 'en',
+    darkMode: Boolean(row.dark_mode ?? false),
+    taxRate: Number(row.tax_rate ?? 0)
   };
 
   return { profile, settings };
 }
 
-export function mapProfileToRow(profile: UserProfile, settings?: Partial<AppSettings>): Record<string, any> {
-  return {
-    id: profile.uid,
-    user_id: profile.uid,
-    email: profile.email,
-    company_name: profile.companyName,
-    company_address: profile.companyAddress,
-    company_website: profile.companyWebsite,
-    company_email: profile.companyEmail,
-    company_logo: profile.companyLogo || '',
-    default_payment_terms: profile.defaultPaymentTerms || '',
-    currency: settings?.currency || 'USD',
-    language: settings?.language || 'en',
-    dark_mode: settings?.darkMode ?? false,
-    tax_rate: settings?.taxRate ?? 0,
-    agreed_to_privacy_policy: profile.agreedToPrivacyPolicy,
-    updated_at: new Date().toISOString()
-  };
-}
+// ==========================================
+// Centralized Supabase Database Operations
+// ==========================================
 
-// Complete Supabase Service Layer with strict user isolation
 export const SupabaseService = {
   client: supabase,
 
-  // 1. Authentication & OTP Flow
-  async signUp(payload: RegisterPayload): Promise<{ 
-    success: boolean; 
-    user?: UserProfile; 
-    requiresVerification?: boolean; 
-    email?: string;
-    error?: string; 
-  }> {
+  // 1. Auth Operations
+  async signUp(
+    payload: RegisterPayload
+  ): Promise<{ success: boolean; requiresVerification?: boolean; user?: UserProfile; error?: string }> {
     try {
-      const email = payload.email.trim().toLowerCase();
-      
+      const cleanEmail = payload.email.trim().toLowerCase();
+      const cleanPass = payload.passwordPlain;
+
       const { data, error } = await supabase.auth.signUp({
-        email,
-        password: payload.passwordPlain,
+        email: cleanEmail,
+        password: cleanPass,
         options: {
           data: {
-            agency_name: payload.companyName,
-            company_name: payload.companyName,
-            location: payload.companyAddress,
-            company_address: payload.companyAddress,
-            website: payload.companyWebsite,
-            company_website: payload.companyWebsite,
-            contact_email: payload.companyEmail,
-            company_email: payload.companyEmail,
-            default_payment_terms: payload.defaultPaymentTerms,
+            company_name: payload.companyName.trim(),
+            company_address: payload.companyAddress.trim(),
+            company_website: payload.companyWebsite?.trim() || '',
+            company_email: (payload.companyEmail || payload.email).trim().toLowerCase(),
             company_logo: payload.companyLogo || '',
-            agreed_to_privacy_policy: payload.agreedToPrivacyPolicy
+            default_payment_terms: payload.defaultPaymentTerms.trim(),
+            agreed_to_privacy_policy: true
           }
         }
       });
@@ -278,25 +283,56 @@ export const SupabaseService = {
 
       const authUser = data.user;
       if (!authUser) {
-        return { success: false, error: 'Sign up failed. Please try again.' };
+        return { success: false, error: 'Registration failed. Please try again.' };
       }
 
-      // If email confirmation is enabled, session is null or confirmation is required
-      return { 
-        success: true, 
-        requiresVerification: true, 
-        email, 
-        user: undefined 
+      if (data.session && authUser) {
+        const userProfile: UserProfile = {
+          uid: authUser.id,
+          email: authUser.email || cleanEmail,
+          displayName: payload.companyName,
+          companyName: payload.companyName,
+          companyAddress: payload.companyAddress,
+          companyWebsite: payload.companyWebsite || '',
+          companyEmail: payload.companyEmail || cleanEmail,
+          companyLogo: payload.companyLogo || '',
+          defaultPaymentTerms: payload.defaultPaymentTerms,
+          createdAt: authUser.created_at || new Date().toISOString(),
+          agreedToPrivacyPolicy: true,
+          privacyPolicyAgreedAt: new Date().toISOString()
+        };
+
+        // Create profile in database
+        await this.updateProfileAndSettings(authUser.id, userProfile, {
+          companyName: payload.companyName,
+          companyAddress: payload.companyAddress,
+          companyWebsite: payload.companyWebsite || '',
+          companyEmail: payload.companyEmail || cleanEmail,
+          companyLogo: payload.companyLogo || '',
+          defaultPaymentTerms: payload.defaultPaymentTerms,
+          currency: 'USD',
+          language: 'en',
+          darkMode: false,
+          taxRate: 0
+        });
+
+        return { success: true, requiresVerification: false, user: userProfile };
+      }
+
+      return {
+        success: true,
+        requiresVerification: true,
+        user: undefined
       };
     } catch (e: any) {
-      console.error('Supabase sign up error:', e);
-      return { success: false, error: e.message || 'An unexpected error occurred during sign up.' };
+      console.error('Supabase signUp error:', e);
+      return { success: false, error: e.message || 'Registration failed.' };
     }
   },
 
-  async verifySignUpOtp(
+  async verifyOtp(
     email: string, 
-    token: string, 
+    token: string,
     pendingProfile?: Partial<RegisterPayload>
   ): Promise<{ success: boolean; user?: UserProfile; error?: string }> {
     try {
@@ -318,7 +354,6 @@ export const SupabaseService = {
         return { success: false, error: 'Verification failed. Please check your 6-digit code and try again.' };
       }
 
-      // Extract metadata from auth user or pending registration payload
       const meta = authUser.user_metadata || {};
       const companyName = pendingProfile?.companyName || meta.company_name || meta.agency_name || cleanEmail.split('@')[0];
       const companyAddress = pendingProfile?.companyAddress || meta.company_address || meta.location || '';
@@ -342,31 +377,18 @@ export const SupabaseService = {
         privacyPolicyAgreedAt: new Date().toISOString()
       };
 
-      // Create / Upsert user's row in `profiles` table using the user's newly authenticated data.user.id
-      try {
-        await supabase
-          .from('profiles')
-          .upsert({
-            id: authUser.id,
-            user_id: authUser.id,
-            email: userProfile.email,
-            company_name: userProfile.companyName,
-            company_address: userProfile.companyAddress,
-            company_website: userProfile.companyWebsite,
-            company_email: userProfile.companyEmail,
-            company_logo: userProfile.companyLogo,
-            default_payment_terms: userProfile.defaultPaymentTerms,
-            currency: 'USD',
-            language: 'en',
-            dark_mode: false,
-            tax_rate: 0,
-            agreed_to_privacy_policy: true,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
-      } catch (profileErr) {
-        console.warn('Profiles table insert notice:', profileErr);
-      }
+      await this.updateProfileAndSettings(authUser.id, userProfile, {
+        companyName,
+        companyAddress,
+        companyWebsite,
+        companyEmail,
+        companyLogo,
+        defaultPaymentTerms,
+        currency: 'USD',
+        language: 'en',
+        darkMode: false,
+        taxRate: 0
+      });
 
       return { success: true, user: userProfile };
     } catch (e: any) {
@@ -409,7 +431,6 @@ export const SupabaseService = {
         return { success: false, error: 'Authentication failed.' };
       }
 
-      // Fetch user profile from Supabase profiles table
       let userProfile: UserProfile = {
         uid: authUser.id,
         email: authUser.email || email,
@@ -426,15 +447,9 @@ export const SupabaseService = {
       };
 
       try {
-        const { data: profileRow } = await supabase
-          .from('profiles')
-          .select('*')
-          .or(`id.eq.${authUser.id},user_id.eq.${authUser.id}`)
-          .maybeSingle();
-
-        if (profileRow) {
-          const parsed = mapProfileFromRow(profileRow);
-          userProfile = { ...userProfile, ...parsed.profile };
+        const { profile } = await this.fetchProfileAndSettings(authUser.id);
+        if (profile) {
+          userProfile = { ...userProfile, ...profile };
         }
       } catch (err) {
         console.warn('Profile fetch notice:', err);
@@ -480,10 +495,9 @@ export const SupabaseService = {
 
   async getCurrentSessionUser(): Promise<UserProfile | null> {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session || !session.user) return null;
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) return null;
 
-      const authUser = session.user;
       let userProfile: UserProfile = {
         uid: authUser.id,
         email: authUser.email || '',
@@ -499,18 +513,12 @@ export const SupabaseService = {
       };
 
       try {
-        const { data: profileRow } = await supabase
-          .from('profiles')
-          .select('*')
-          .or(`id.eq.${authUser.id},user_id.eq.${authUser.id}`)
-          .maybeSingle();
-
-        if (profileRow) {
-          const parsed = mapProfileFromRow(profileRow);
-          userProfile = { ...userProfile, ...parsed.profile };
+        const { profile } = await this.fetchProfileAndSettings(authUser.id);
+        if (profile) {
+          userProfile = { ...userProfile, ...profile };
         }
       } catch {
-        // use auth metadata
+        // use metadata
       }
 
       return userProfile;
@@ -520,7 +528,7 @@ export const SupabaseService = {
     }
   },
 
-  // 2. Profiles / Settings Database Operations (Supports both user_settings and profiles tables)
+  // 2. Profiles / Settings Database Operations
   async fetchProfileAndSettings(userId: string): Promise<{ profile: UserProfile | null; settings: Partial<AppSettings> | null }> {
     try {
       // 1. Try user_settings table
@@ -616,21 +624,23 @@ export const SupabaseService = {
     }
   },
 
-  async upsertClient(client: ClientProject, userId: string): Promise<boolean> {
+  async upsertClient(client: ClientProject, userId: string): Promise<ClientProject | null> {
     try {
       const row = mapClientToRow(client, userId);
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('clients')
-        .upsert(row);
+        .upsert(row)
+        .select()
+        .single();
 
       if (error) {
         console.error('Supabase upsertClient error:', error.message);
-        return false;
+        return null;
       }
-      return true;
+      return mapClientFromRow(data);
     } catch (e) {
       console.error('upsertClient exception:', e);
-      return false;
+      return null;
     }
   },
 
@@ -681,21 +691,23 @@ export const SupabaseService = {
     }
   },
 
-  async upsertInvoice(invoice: Invoice, userId: string): Promise<boolean> {
+  async upsertInvoice(invoice: Invoice, userId: string): Promise<Invoice | null> {
     try {
       const row = mapInvoiceToRow(invoice, userId);
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('invoices')
-        .upsert(row);
+        .upsert(row)
+        .select()
+        .single();
 
       if (error) {
         console.error('Supabase upsertInvoice error:', error.message);
-        return false;
+        return null;
       }
-      return true;
+      return mapInvoiceFromRow(data);
     } catch (e) {
       console.error('upsertInvoice exception:', e);
-      return false;
+      return null;
     }
   },
 
@@ -703,7 +715,7 @@ export const SupabaseService = {
     try {
       const { error } = await supabase
         .from('invoices')
-        .update({ status })
+        .update({ status, updated_at: new Date().toISOString() })
         .eq('user_id', userId)
         .eq('id', invoiceId);
 
@@ -758,21 +770,23 @@ export const SupabaseService = {
     }
   },
 
-  async upsertSpending(spending: Spending, userId: string): Promise<boolean> {
+  async upsertSpending(spending: Spending, userId: string): Promise<Spending | null> {
     try {
       const row = mapSpendingToRow(spending, userId);
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('spendings')
-        .upsert(row);
+        .upsert(row)
+        .select()
+        .single();
 
       if (error) {
         console.error('Supabase upsertSpending error:', error.message);
-        return false;
+        return null;
       }
-      return true;
+      return mapSpendingFromRow(data);
     } catch (e) {
       console.error('upsertSpending exception:', e);
-      return false;
+      return null;
     }
   },
 
@@ -802,6 +816,7 @@ export const SupabaseService = {
         supabase.from('invoices').delete().eq('user_id', userId),
         supabase.from('clients').delete().eq('user_id', userId),
         supabase.from('spendings').delete().eq('user_id', userId),
+        supabase.from('user_settings').delete().eq('user_id', userId),
         supabase.from('profiles').delete().eq('user_id', userId)
       ]);
       return true;

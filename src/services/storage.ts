@@ -1,5 +1,24 @@
-import { ClientProject, Invoice, Spending, AppSettings, UserProfile, ActivityLog, RegisterPayload, InvoiceStatus } from '../types';
-import { SupabaseService } from './supabase';
+import { 
+  ClientProject, 
+  Invoice, 
+  Spending, 
+  AppSettings, 
+  UserProfile, 
+  ActivityLog, 
+  RegisterPayload, 
+  InvoiceStatus 
+} from '../types';
+import { 
+  supabase, 
+  SupabaseService, 
+  mapClientFromRow, 
+  mapClientToRow, 
+  mapInvoiceFromRow, 
+  mapInvoiceToRow, 
+  mapSpendingFromRow, 
+  mapSpendingToRow,
+  mapProfileFromRow
+} from './supabase';
 
 export const DEFAULT_SETTINGS: AppSettings = {
   currency: 'USD',
@@ -77,9 +96,12 @@ const GLOBAL_KEYS = {
   REGISTERED_ACCOUNTS: 'wisco_registered_accounts'
 };
 
-// Supabase-backed Storage Service with instantaneous local caching and strict user isolation
+// =========================================================================
+// StorageService: Direct Supabase Database Persistence Layer with Fast Cache
+// =========================================================================
+
 export const StorageService = {
-  // Returns currently active user session or null
+  // Session User in Local State
   getUser(): UserProfile | null {
     try {
       const data = localStorage.getItem(GLOBAL_KEYS.CURRENT_USER);
@@ -89,13 +111,11 @@ export const StorageService = {
     }
   },
 
-  // Returns active UID or null
   getCurrentUid(): string | null {
     const user = this.getUser();
     return user?.uid || null;
   },
 
-  // Sets or clears the active user session
   setUser(user: UserProfile | null): void {
     if (!user) {
       localStorage.removeItem(GLOBAL_KEYS.CURRENT_USER);
@@ -104,721 +124,619 @@ export const StorageService = {
     }
   },
 
-  // Helper for generating UID-scoped storage keys
-  getKey(dataType: 'clients' | 'invoices' | 'spendings' | 'settings' | 'activities' | 'profile', explicitUid?: string | null): string {
+  getKey(dataType: string, explicitUid?: string | null): string {
     const uid = explicitUid || this.getCurrentUid();
-    if (!uid) {
-      return `wisco_guest_${dataType}`;
-    }
+    if (!uid) return `wisco_guest_${dataType}`;
     return `wisco_${dataType}_${uid}`;
   },
 
-  // Account Registration via Supabase Auth
-  async registerUser(
-    payload: RegisterPayload
-  ): Promise<{ success: boolean; requiresVerification?: boolean; email?: string; user?: UserProfile; error?: string }> {
+  // -----------------------------------------------------------------------
+  // 1. CLIENTS (Direct Supabase Queries)
+  // -----------------------------------------------------------------------
+
+  async getClients(explicitUid?: string | null): Promise<ClientProject[]> {
     try {
-      const res = await SupabaseService.signUp(payload);
-      if (!res.success) {
-        return { success: false, error: res.error || 'Registration failed.' };
+      let uid = explicitUid;
+      if (!uid) {
+        const { data: { user } } = await supabase.auth.getUser();
+        uid = user?.id || this.getCurrentUid();
       }
 
-      if (res.requiresVerification) {
-        return { 
-          success: true, 
-          requiresVerification: true, 
-          email: payload.email.trim().toLowerCase() 
-        };
+      if (!uid) {
+        return this.getCachedClients(null);
       }
 
-      if (res.user) {
-        const userProfile = res.user;
-        const uid = userProfile.uid;
+      const { data, error } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false });
 
-        // Initialize local settings & user record
-        const initialSettings: AppSettings = {
-          ...DEFAULT_SETTINGS,
-          companyName: payload.companyName || 'Whislly Partner',
-          companyAddress: payload.companyAddress || 'Amman, Jordan',
-          companyWebsite: payload.companyWebsite || 'www.company.com',
-          companyEmail: payload.companyEmail || payload.email,
-          companyLogo: payload.companyLogo || '',
-          defaultPaymentTerms: payload.defaultPaymentTerms || DEFAULT_SETTINGS.defaultPaymentTerms
-        };
-
-        localStorage.setItem(this.getKey('profile', uid), JSON.stringify(userProfile));
-        localStorage.setItem(this.getKey('settings', uid), JSON.stringify(initialSettings));
-        localStorage.setItem(this.getKey('clients', uid), JSON.stringify([]));
-        localStorage.setItem(this.getKey('invoices', uid), JSON.stringify([]));
-        localStorage.setItem(this.getKey('spendings', uid), JSON.stringify([]));
-        localStorage.setItem(this.getKey('activities', uid), JSON.stringify([]));
-
-        // Set active session
-        this.setUser(userProfile);
-
-        return { success: true, user: userProfile };
+      if (error) {
+        console.warn('Error fetching clients from Supabase, returning cache:', error.message);
+        return this.getCachedClients(uid);
       }
 
-      return { success: true, requiresVerification: true, email: payload.email.trim().toLowerCase() };
-    } catch (e: any) {
-      console.error('Registration error:', e);
-      return { success: false, error: e.message || 'Failed to create account. Please try again.' };
-    }
-  },
-
-  // Verify 6-digit OTP and complete onboarding
-  async verifyOtpAndCompleteRegistration(
-    email: string,
-    token: string,
-    pendingPayload?: RegisterPayload
-  ): Promise<{ success: boolean; user?: UserProfile; error?: string }> {
-    try {
-      const res = await SupabaseService.verifySignUpOtp(email, token, pendingPayload);
-      if (!res.success || !res.user) {
-        return { success: false, error: res.error || 'Invalid or expired verification code.' };
-      }
-
-      const userProfile = res.user;
-      const uid = userProfile.uid;
-
-      // Initialize local settings & user record
-      const initialSettings: AppSettings = {
-        ...DEFAULT_SETTINGS,
-        companyName: pendingPayload?.companyName || userProfile.companyName || 'Whislly Partner',
-        companyAddress: pendingPayload?.companyAddress || userProfile.companyAddress || 'Amman, Jordan',
-        companyWebsite: pendingPayload?.companyWebsite || userProfile.companyWebsite || 'www.company.com',
-        companyEmail: pendingPayload?.companyEmail || userProfile.companyEmail || userProfile.email,
-        companyLogo: pendingPayload?.companyLogo || userProfile.companyLogo || '',
-        defaultPaymentTerms: pendingPayload?.defaultPaymentTerms || userProfile.defaultPaymentTerms || DEFAULT_SETTINGS.defaultPaymentTerms
-      };
-
-      localStorage.setItem(this.getKey('profile', uid), JSON.stringify(userProfile));
-      localStorage.setItem(this.getKey('settings', uid), JSON.stringify(initialSettings));
-      localStorage.setItem(this.getKey('clients', uid), JSON.stringify([]));
-      localStorage.setItem(this.getKey('invoices', uid), JSON.stringify([]));
-      localStorage.setItem(this.getKey('spendings', uid), JSON.stringify([]));
-      localStorage.setItem(this.getKey('activities', uid), JSON.stringify([]));
-
-      // Set active session
-      this.setUser(userProfile);
-
-      return { success: true, user: userProfile };
-    } catch (e: any) {
-      console.error('Verify OTP error:', e);
-      return { success: false, error: e.message || 'Verification failed. Please try again.' };
-    }
-  },
-
-  // Resend 6-digit verification code
-  async resendVerificationCode(email: string): Promise<{ success: boolean; error?: string }> {
-    try {
-      return await SupabaseService.resendSignUpOtp(email);
-    } catch (e: any) {
-      return { success: false, error: e.message || 'Failed to resend code.' };
-    }
-  },
-
-  // Request password reset email
-  async resetPassword(email: string): Promise<{ success: boolean; error?: string }> {
-    try {
-      return await SupabaseService.resetPasswordForEmail(email);
-    } catch (e: any) {
-      return { success: false, error: e.message || 'Failed to request password reset.' };
-    }
-  },
-
-  // Account Login via Supabase Auth + Sync from Supabase tables
-  async loginUser(
-    email: string,
-    passwordPlain: string
-  ): Promise<{ success: boolean; user?: UserProfile; error?: string }> {
-    try {
-      const res = await SupabaseService.signIn(email, passwordPlain);
-      if (!res.success || !res.user) {
-        return { success: false, error: res.error || 'Invalid email or password.' };
-      }
-
-      const userProfile = res.user;
-      const uid = userProfile.uid;
-
-      this.setUser(userProfile);
-      localStorage.setItem(this.getKey('profile', uid), JSON.stringify(userProfile));
-
-      // Synchronize database records from Supabase tables for this user
-      await this.syncFromSupabase(uid);
-
-      return { success: true, user: userProfile };
-    } catch (e: any) {
-      console.error('Login error:', e);
-      return { success: false, error: e.message || 'Failed to authenticate. Please try again.' };
-    }
-  },
-
-  // Synchronize all data from Supabase tables (filtered strictly by user_id)
-  async syncFromSupabase(userId: string): Promise<{
-    clients: ClientProject[];
-    invoices: Invoice[];
-    spendings: Spending[];
-    settings: AppSettings;
-  }> {
-    try {
-      const [clientsData, invoicesData, spendingsData, profileData] = await Promise.all([
-        SupabaseService.fetchClients(userId),
-        SupabaseService.fetchInvoices(userId),
-        SupabaseService.fetchSpendings(userId),
-        SupabaseService.fetchProfileAndSettings(userId)
-      ]);
-
-      // Cache locally
-      this.saveClients(clientsData, userId);
-      this.saveInvoices(invoicesData, userId);
-      this.saveSpendings(spendingsData, userId);
-
-      if (profileData.settings) {
-        this.saveSettings(profileData.settings, userId);
-      }
-
-      const currentSettings = this.getSettings(userId);
-      return {
-        clients: clientsData,
-        invoices: invoicesData,
-        spendings: spendingsData,
-        settings: currentSettings
-      };
+      const clients = (data || []).map(mapClientFromRow);
+      this.saveCachedClients(clients, uid);
+      return clients;
     } catch (e) {
-      console.warn('Supabase sync error (using local cache):', e);
-      return {
-        clients: this.getClients(userId),
-        invoices: this.getInvoices(userId),
-        spendings: this.getSpendings(userId),
-        settings: this.getSettings(userId)
-      };
+      console.error('getClients exception:', e);
+      return this.getCachedClients(explicitUid);
     }
   },
 
-  // Settings & Profile
-  getSettings(explicitUid?: string | null): AppSettings {
+  getCachedClients(explicitUid?: string | null): ClientProject[] {
     try {
-      const key = this.getKey('settings', explicitUid);
+      const key = this.getKey('clients', explicitUid);
       const data = localStorage.getItem(key);
-      if (data) {
-        return { ...DEFAULT_SETTINGS, ...JSON.parse(data) };
-      }
+      return data ? JSON.parse(data) : [];
     } catch {
-      // ignore
+      return [];
     }
-    return DEFAULT_SETTINGS;
   },
 
-  saveSettings(settings: Partial<AppSettings>, explicitUid?: string | null): AppSettings {
-    const current = this.getSettings(explicitUid);
-    const updated = { ...current, ...settings };
-    const uid = explicitUid || this.getCurrentUid();
-    const key = this.getKey('settings', uid);
-    localStorage.setItem(key, JSON.stringify(updated));
+  saveCachedClients(clients: ClientProject[], explicitUid?: string | null): void {
+    try {
+      const key = this.getKey('clients', explicitUid);
+      localStorage.setItem(key, JSON.stringify(clients));
+    } catch (e) {
+      console.warn('saveCachedClients error:', e);
+    }
+  },
 
-    if (uid) {
-      try {
-        const profileKey = this.getKey('profile', uid);
-        const profileRaw = localStorage.getItem(profileKey);
-        let profileObj: UserProfile = profileRaw ? JSON.parse(profileRaw) : {
-          uid,
-          email: updated.companyEmail || '',
-          displayName: updated.companyName || 'Agency Partner',
-          createdAt: new Date().toISOString(),
-          agreedToPrivacyPolicy: true
-        };
+  async addClient(clientData: Omit<ClientProject, 'id' | 'createdAt'>, explicitUid?: string | null): Promise<ClientProject> {
+    const { data: { user } } = await supabase.auth.getUser();
+    const uid = explicitUid || user?.id || this.getCurrentUid();
+    if (!uid) throw new Error('Not authenticated: please sign in to create clients.');
 
-        if (settings.companyName !== undefined) {
-          profileObj.companyName = settings.companyName;
-          profileObj.displayName = settings.companyName;
-        }
-        if (settings.companyAddress !== undefined) profileObj.companyAddress = settings.companyAddress;
-        if (settings.companyWebsite !== undefined) profileObj.companyWebsite = settings.companyWebsite;
-        if (settings.companyEmail !== undefined) profileObj.companyEmail = settings.companyEmail;
-        if (settings.companyLogo !== undefined) profileObj.companyLogo = settings.companyLogo;
-        if (settings.defaultPaymentTerms !== undefined) profileObj.defaultPaymentTerms = settings.defaultPaymentTerms;
-        localStorage.setItem(profileKey, JSON.stringify(profileObj));
+    const newClient: ClientProject = {
+      ...clientData,
+      id: `cli-${Date.now()}`,
+      createdAt: new Date().toISOString()
+    };
 
-        const currentUser = this.getUser();
-        if (currentUser && currentUser.uid === uid) {
-          if (settings.companyName !== undefined) {
-            currentUser.companyName = settings.companyName;
-            currentUser.displayName = settings.companyName;
-          }
-          if (settings.companyAddress !== undefined) currentUser.companyAddress = settings.companyAddress;
-          if (settings.companyWebsite !== undefined) currentUser.companyWebsite = settings.companyWebsite;
-          if (settings.companyEmail !== undefined) currentUser.companyEmail = settings.companyEmail;
-          if (settings.companyLogo !== undefined) currentUser.companyLogo = settings.companyLogo;
-          if (settings.defaultPaymentTerms !== undefined) currentUser.defaultPaymentTerms = settings.defaultPaymentTerms;
-          this.setUser(currentUser);
-        }
+    const row = mapClientToRow(newClient, uid);
+    const { data, error } = await supabase
+      .from('clients')
+      .insert([row])
+      .select()
+      .single();
 
-        // Asynchronously sync to Supabase profiles table
-        SupabaseService.updateProfileAndSettings(uid, profileObj, updated).catch(err => {
-          console.warn('Background Supabase profile update notice:', err);
-        });
-      } catch (err) {
-        console.warn('Profile sync notice:', err);
-      }
+    if (error) {
+      console.error('Supabase client insertion error:', error.message);
+      throw error;
     }
 
+    const savedClient = mapClientFromRow(data);
+
+    // Auto-generate and persist corresponding invoice in Supabase
+    try {
+      const existingInvoices = await this.getInvoices(uid);
+      const autoInvoice = generateInvoiceForClient(savedClient, existingInvoices.length + 1);
+      const invoiceRow = mapInvoiceToRow(autoInvoice, uid);
+      await supabase.from('invoices').insert([invoiceRow]);
+    } catch (invErr) {
+      console.warn('Auto invoice generation notice:', invErr);
+    }
+
+    // Refresh cache
+    const updated = [savedClient, ...this.getCachedClients(uid).filter(c => c.id !== savedClient.id)];
+    this.saveCachedClients(updated, uid);
+
+    return savedClient;
+  },
+
+  async updateClient(client: ClientProject, explicitUid?: string | null): Promise<ClientProject> {
+    const { data: { user } } = await supabase.auth.getUser();
+    const uid = explicitUid || user?.id || this.getCurrentUid();
+    if (!uid) throw new Error('Not authenticated');
+
+    const row = mapClientToRow(client, uid);
+    const { data, error } = await supabase
+      .from('clients')
+      .update(row)
+      .eq('user_id', uid)
+      .eq('id', client.id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase updateClient error:', error.message);
+      throw error;
+    }
+
+    const updatedClient = mapClientFromRow(data);
+
+    // Sync corresponding invoice details
+    try {
+      await supabase
+        .from('invoices')
+        .update({
+          client_name: updatedClient.name,
+          company_name: updatedClient.companyName,
+          client_email: updatedClient.email,
+          client_phone: updatedClient.phone,
+          client_address: updatedClient.address,
+          project_name: updatedClient.project,
+          project_category: updatedClient.category,
+          subtotal: updatedClient.cost,
+          total_amount: updatedClient.cost,
+          operating_expenses: updatedClient.operatingExpenses,
+          status: updatedClient.status === 'Completed' ? 'Paid' : 'Pending',
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', uid)
+        .eq('client_id', updatedClient.id);
+    } catch (e) {
+      console.warn('Invoice sync notice:', e);
+    }
+
+    // Refresh cache
+    const cached = this.getCachedClients(uid).map(c => c.id === updatedClient.id ? updatedClient : c);
+    this.saveCachedClients(cached, uid);
+
+    return updatedClient;
+  },
+
+  async deleteClient(clientId: string, explicitUid?: string | null): Promise<boolean> {
+    const { data: { user } } = await supabase.auth.getUser();
+    const uid = explicitUid || user?.id || this.getCurrentUid();
+    if (!uid) throw new Error('Not authenticated');
+
+    // Delete linked invoices first
+    await supabase.from('invoices').delete().eq('user_id', uid).eq('client_id', clientId);
+
+    const { error } = await supabase.from('clients').delete().eq('user_id', uid).eq('id', clientId);
+    if (error) {
+      console.error('Supabase deleteClient error:', error.message);
+      return false;
+    }
+
+    const cached = this.getCachedClients(uid).filter(c => c.id !== clientId);
+    this.saveCachedClients(cached, uid);
+    return true;
+  },
+
+  // -----------------------------------------------------------------------
+  // 2. INVOICES (Direct Supabase Queries)
+  // -----------------------------------------------------------------------
+
+  async getInvoices(explicitUid?: string | null): Promise<Invoice[]> {
+    try {
+      let uid = explicitUid;
+      if (!uid) {
+        const { data: { user } } = await supabase.auth.getUser();
+        uid = user?.id || this.getCurrentUid();
+      }
+
+      if (!uid) {
+        return this.getCachedInvoices(null);
+      }
+
+      const { data, error } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('Error fetching invoices from Supabase, returning cache:', error.message);
+        return this.getCachedInvoices(uid);
+      }
+
+      const invoices = (data || []).map(mapInvoiceFromRow);
+      this.saveCachedInvoices(invoices, uid);
+      return invoices;
+    } catch (e) {
+      console.error('getInvoices exception:', e);
+      return this.getCachedInvoices(explicitUid);
+    }
+  },
+
+  getCachedInvoices(explicitUid?: string | null): Invoice[] {
+    try {
+      const key = this.getKey('invoices', explicitUid);
+      const data = localStorage.getItem(key);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  saveCachedInvoices(invoices: Invoice[], explicitUid?: string | null): void {
+    try {
+      const key = this.getKey('invoices', explicitUid);
+      localStorage.setItem(key, JSON.stringify(invoices));
+    } catch (e) {
+      console.warn('saveCachedInvoices error:', e);
+    }
+  },
+
+  async addInvoice(invoiceData: Omit<Invoice, 'id' | 'createdAt'>, explicitUid?: string | null): Promise<Invoice> {
+    const { data: { user } } = await supabase.auth.getUser();
+    const uid = explicitUid || user?.id || this.getCurrentUid();
+    if (!uid) throw new Error('Not authenticated');
+
+    const newInvoice: Invoice = {
+      ...invoiceData,
+      id: `inv-${Date.now()}`,
+      createdAt: new Date().toISOString()
+    };
+
+    const row = mapInvoiceToRow(newInvoice, uid);
+    const { data, error } = await supabase
+      .from('invoices')
+      .insert([row])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase addInvoice error:', error.message);
+      throw error;
+    }
+
+    const savedInvoice = mapInvoiceFromRow(data);
+    const updated = [savedInvoice, ...this.getCachedInvoices(uid).filter(i => i.id !== savedInvoice.id)];
+    this.saveCachedInvoices(updated, uid);
+    return savedInvoice;
+  },
+
+  async updateInvoiceStatus(invoiceId: string, status: InvoiceStatus, explicitUid?: string | null): Promise<boolean> {
+    const { data: { user } } = await supabase.auth.getUser();
+    const uid = explicitUid || user?.id || this.getCurrentUid();
+    if (!uid) throw new Error('Not authenticated');
+
+    const { error } = await supabase
+      .from('invoices')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('user_id', uid)
+      .eq('id', invoiceId);
+
+    if (error) {
+      console.error('Supabase updateInvoiceStatus error:', error.message);
+      return false;
+    }
+
+    const cached = this.getCachedInvoices(uid).map(i => i.id === invoiceId ? { ...i, status } : i);
+    this.saveCachedInvoices(cached, uid);
+    return true;
+  },
+
+  async deleteInvoice(invoiceId: string, explicitUid?: string | null): Promise<boolean> {
+    const { data: { user } } = await supabase.auth.getUser();
+    const uid = explicitUid || user?.id || this.getCurrentUid();
+    if (!uid) throw new Error('Not authenticated');
+
+    const { error } = await supabase
+      .from('invoices')
+      .delete()
+      .eq('user_id', uid)
+      .eq('id', invoiceId);
+
+    if (error) {
+      console.error('Supabase deleteInvoice error:', error.message);
+      return false;
+    }
+
+    const cached = this.getCachedInvoices(uid).filter(i => i.id !== invoiceId);
+    this.saveCachedInvoices(cached, uid);
+    return true;
+  },
+
+  // -----------------------------------------------------------------------
+  // 3. SPENDINGS (Direct Supabase Queries)
+  // -----------------------------------------------------------------------
+
+  async getSpendings(explicitUid?: string | null): Promise<Spending[]> {
+    try {
+      let uid = explicitUid;
+      if (!uid) {
+        const { data: { user } } = await supabase.auth.getUser();
+        uid = user?.id || this.getCurrentUid();
+      }
+
+      if (!uid) {
+        return this.getCachedSpendings(null);
+      }
+
+      const { data, error } = await supabase
+        .from('spendings')
+        .select('*')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('Error fetching spendings from Supabase, returning cache:', error.message);
+        return this.getCachedSpendings(uid);
+      }
+
+      const spendings = (data || []).map(mapSpendingFromRow);
+      this.saveCachedSpendings(spendings, uid);
+      return spendings;
+    } catch (e) {
+      console.error('getSpendings exception:', e);
+      return this.getCachedSpendings(explicitUid);
+    }
+  },
+
+  getCachedSpendings(explicitUid?: string | null): Spending[] {
+    try {
+      const key = this.getKey('spendings', explicitUid);
+      const data = localStorage.getItem(key);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  saveCachedSpendings(spendings: Spending[], explicitUid?: string | null): void {
+    try {
+      const key = this.getKey('spendings', explicitUid);
+      localStorage.setItem(key, JSON.stringify(spendings));
+    } catch (e) {
+      console.warn('saveCachedSpendings error:', e);
+    }
+  },
+
+  async addSpending(spendingData: Omit<Spending, 'id' | 'createdAt'>, explicitUid?: string | null): Promise<Spending> {
+    const { data: { user } } = await supabase.auth.getUser();
+    const uid = explicitUid || user?.id || this.getCurrentUid();
+    if (!uid) throw new Error('Not authenticated');
+
+    const newSpending: Spending = {
+      ...spendingData,
+      id: `sp-${Date.now()}`,
+      createdAt: new Date().toISOString()
+    };
+
+    const row = mapSpendingToRow(newSpending, uid);
+    const { data, error } = await supabase
+      .from('spendings')
+      .insert([row])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase addSpending error:', error.message);
+      throw error;
+    }
+
+    const saved = mapSpendingFromRow(data);
+    const updated = [saved, ...this.getCachedSpendings(uid).filter(s => s.id !== saved.id)];
+    this.saveCachedSpendings(updated, uid);
+    return saved;
+  },
+
+  async updateSpending(spending: Spending, explicitUid?: string | null): Promise<Spending> {
+    const { data: { user } } = await supabase.auth.getUser();
+    const uid = explicitUid || user?.id || this.getCurrentUid();
+    if (!uid) throw new Error('Not authenticated');
+
+    const row = mapSpendingToRow(spending, uid);
+    const { data, error } = await supabase
+      .from('spendings')
+      .update(row)
+      .eq('user_id', uid)
+      .eq('id', spending.id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase updateSpending error:', error.message);
+      throw error;
+    }
+
+    const updated = mapSpendingFromRow(data);
+    const cached = this.getCachedSpendings(uid).map(s => s.id === updated.id ? updated : s);
+    this.saveCachedSpendings(cached, uid);
     return updated;
   },
 
-  // Clients (Strictly UID-isolated)
-  getClients(explicitUid?: string | null): ClientProject[] {
-    const uid = explicitUid || this.getCurrentUid();
-    if (!uid) return [];
+  async deleteSpending(spendingId: string, explicitUid?: string | null): Promise<boolean> {
+    const { data: { user } } = await supabase.auth.getUser();
+    const uid = explicitUid || user?.id || this.getCurrentUid();
+    if (!uid) throw new Error('Not authenticated');
 
-    try {
-      const key = this.getKey('clients', uid);
-      const data = localStorage.getItem(key);
-      if (data) {
-        return JSON.parse(data);
-      }
-    } catch {
-      // ignore
+    const { error } = await supabase
+      .from('spendings')
+      .delete()
+      .eq('user_id', uid)
+      .eq('id', spendingId);
+
+    if (error) {
+      console.error('Supabase deleteSpending error:', error.message);
+      return false;
     }
-    return [];
+
+    const cached = this.getCachedSpendings(uid).filter(s => s.id !== spendingId);
+    this.saveCachedSpendings(cached, uid);
+    return true;
   },
 
-  async fetchClientsFromDb(explicitUid?: string | null): Promise<ClientProject[]> {
-    const uid = explicitUid || this.getCurrentUid();
-    if (!uid) return [];
+  // -----------------------------------------------------------------------
+  // 4. SETTINGS & PROFILE (Direct Supabase Persistence)
+  // -----------------------------------------------------------------------
+
+  async getSettings(explicitUid?: string | null): Promise<AppSettings> {
     try {
-      const dbClients = await SupabaseService.fetchClients(uid);
-      this.saveClients(dbClients, uid);
-      return dbClients;
+      const uid = explicitUid || this.getCurrentUid();
+      if (!uid) return this.getCachedSettings(null);
+
+      const res = await SupabaseService.fetchProfileAndSettings(uid);
+      if (res.settings) {
+        const merged = { ...DEFAULT_SETTINGS, ...this.getCachedSettings(uid), ...res.settings };
+        this.saveCachedSettings(merged, uid);
+        return merged;
+      }
+      return this.getCachedSettings(uid);
+    } catch {
+      return this.getCachedSettings(explicitUid);
+    }
+  },
+
+  getCachedSettings(explicitUid?: string | null): AppSettings {
+    try {
+      const key = this.getKey('settings', explicitUid);
+      const data = localStorage.getItem(key);
+      return data ? { ...DEFAULT_SETTINGS, ...JSON.parse(data) } : DEFAULT_SETTINGS;
+    } catch {
+      return DEFAULT_SETTINGS;
+    }
+  },
+
+  saveCachedSettings(settings: Partial<AppSettings>, explicitUid?: string | null): void {
+    try {
+      const key = this.getKey('settings', explicitUid);
+      const current = this.getCachedSettings(explicitUid);
+      const merged = { ...current, ...settings };
+      localStorage.setItem(key, JSON.stringify(merged));
     } catch (e) {
-      console.warn('fetchClientsFromDb fallback to cache:', e);
-      return this.getClients(uid);
+      console.warn('saveCachedSettings error:', e);
     }
   },
 
-  saveClients(clients: ClientProject[], explicitUid?: string | null): void {
+  async updateSettings(newSettings: Partial<AppSettings>, explicitUid?: string | null): Promise<AppSettings> {
     const uid = explicitUid || this.getCurrentUid();
-    if (!uid) return;
-    const key = this.getKey('clients', uid);
-    localStorage.setItem(key, JSON.stringify(clients));
-  },
-
-  async saveClient(
-    clientData: Omit<ClientProject, 'id' | 'createdAt'>,
-    existingId?: string,
-    explicitUid?: string | null
-  ): Promise<ClientProject> {
-    const uid = explicitUid || this.getCurrentUid();
-    const clients = this.getClients(uid);
-    let client: ClientProject;
-
-    if (existingId) {
-      const idx = clients.findIndex(c => c.id === existingId);
-      if (idx !== -1) {
-        client = {
-          ...clients[idx],
-          ...clientData
-        };
-        clients[idx] = client;
-      } else {
-        client = {
-          ...clientData,
-          id: existingId,
-          createdAt: new Date().toISOString()
-        };
-        clients.push(client);
-      }
-    } else {
-      client = {
-        ...clientData,
-        id: `cli-${Date.now()}`,
-        createdAt: new Date().toISOString()
-      };
-      clients.unshift(client);
-    }
-
-    this.saveClients(clients, uid);
-
-    // Synchronize auto invoice for this user
-    const invoices = this.getInvoices(uid);
-    const userSettings = this.getSettings(uid);
-    const existingInvIdx = invoices.findIndex(i => i.clientId === client.id);
-    const invoiceNumSeq = invoices.length + 101;
-    const updatedInvoice = generateInvoiceForClient(client, invoiceNumSeq, userSettings.defaultPaymentTerms);
-
-    let finalInvoice: Invoice;
-    if (existingInvIdx !== -1) {
-      finalInvoice = {
-        ...invoices[existingInvIdx],
-        clientName: client.name,
-        companyName: client.companyName,
-        clientEmail: client.email,
-        clientPhone: client.phone,
-        clientAddress: client.address,
-        projectName: client.project,
-        projectCategory: client.category,
-        subtotal: client.cost,
-        totalAmount: client.cost + (client.cost * invoices[existingInvIdx].taxRate) / 100,
-        operatingExpenses: client.operatingExpenses,
-        status: client.status === 'Completed' ? 'Paid' : invoices[existingInvIdx].status,
-        items: [
-          {
-            id: invoices[existingInvIdx].items?.[0]?.id || 'item-1',
-            description: `${client.project} - Complete Professional Scope & Deliverables`,
-            quantity: 1,
-            unitPrice: client.cost,
-            total: client.cost
-          }
-        ]
-      };
-      invoices[existingInvIdx] = finalInvoice;
-    } else {
-      finalInvoice = updatedInvoice;
-      invoices.unshift(finalInvoice);
-    }
-    this.saveInvoices(invoices, uid);
-
-    // Direct and robust persistence to Supabase PostgreSQL
-    if (uid) {
-      try {
-        await Promise.allSettled([
-          SupabaseService.upsertClient(client, uid),
-          SupabaseService.upsertInvoice(finalInvoice, uid)
-        ]);
-      } catch (err) {
-        console.warn('Background Supabase upsertClient notice:', err);
-      }
-    }
-
-    this.logActivity({
-      type: existingId ? 'client_created' : 'client_created',
-      title: existingId ? 'Client Project Updated' : 'New Client Contract Onboarded',
-      description: `${client.name} (${client.companyName}) - ${client.project}`,
-      amount: client.cost
-    }, uid);
-
-    return client;
-  },
-
-  async deleteClient(clientId: string, explicitUid?: string | null): Promise<void> {
-    const uid = explicitUid || this.getCurrentUid();
-    const clients = this.getClients(uid).filter(c => c.id !== clientId);
-    this.saveClients(clients, uid);
-
-    const invoices = this.getInvoices(uid).filter(i => i.clientId !== clientId);
-    this.saveInvoices(invoices, uid);
-
-    // Direct deletion from Supabase PostgreSQL
-    if (uid) {
-      try {
-        await SupabaseService.deleteClient(clientId, uid);
-      } catch (err) {
-        console.warn('Background Supabase deleteClient notice:', err);
-      }
-    }
-
-    this.logActivity({
-      type: 'client_created',
-      title: 'Client Record Deleted',
-      description: `Client profile and associated invoices removed.`
-    }, uid);
-  },
-
-  // Invoices (Strictly UID-isolated)
-  getInvoices(explicitUid?: string | null): Invoice[] {
-    const uid = explicitUid || this.getCurrentUid();
-    if (!uid) return [];
-
-    try {
-      const key = this.getKey('invoices', uid);
-      const data = localStorage.getItem(key);
-      if (data) {
-        return JSON.parse(data);
-      }
-    } catch {
-      // ignore
-    }
-    return [];
-  },
-
-  async fetchInvoicesFromDb(explicitUid?: string | null): Promise<Invoice[]> {
-    const uid = explicitUid || this.getCurrentUid();
-    if (!uid) return [];
-    try {
-      const dbInvoices = await SupabaseService.fetchInvoices(uid);
-      this.saveInvoices(dbInvoices, uid);
-      return dbInvoices;
-    } catch (e) {
-      console.warn('fetchInvoicesFromDb fallback to cache:', e);
-      return this.getInvoices(uid);
-    }
-  },
-
-  saveInvoices(invoices: Invoice[], explicitUid?: string | null): void {
-    const uid = explicitUid || this.getCurrentUid();
-    if (!uid) return;
-    const key = this.getKey('invoices', uid);
-    localStorage.setItem(key, JSON.stringify(invoices));
-  },
-
-  async updateInvoiceStatus(invoiceId: string, status: InvoiceStatus, explicitUid?: string | null): Promise<void> {
-    const uid = explicitUid || this.getCurrentUid();
-    const invoices = this.getInvoices(uid);
-    const idx = invoices.findIndex(i => i.id === invoiceId);
-    if (idx !== -1) {
-      invoices[idx].status = status;
-      this.saveInvoices(invoices, uid);
-
-      if (uid) {
-        try {
-          await SupabaseService.updateInvoiceStatus(invoiceId, status, uid);
-        } catch (err) {
-          console.warn('Background Supabase updateInvoiceStatus notice:', err);
-        }
-      }
-
-      this.logActivity({
-        type: status === 'Paid' ? 'invoice_paid' : 'invoice_generated',
-        title: `Invoice Marked as ${status}`,
-        description: `Invoice ${invoices[idx].invoiceNumber} for ${invoices[idx].clientName}`,
-        amount: invoices[idx].totalAmount
-      }, uid);
-    }
-  },
-
-  // Spendings (Strictly UID-isolated)
-  getSpendings(explicitUid?: string | null): Spending[] {
-    const uid = explicitUid || this.getCurrentUid();
-    if (!uid) return [];
-
-    try {
-      const key = this.getKey('spendings', uid);
-      const data = localStorage.getItem(key);
-      if (data) {
-        return JSON.parse(data);
-      }
-    } catch {
-      // ignore
-    }
-    return [];
-  },
-
-  async fetchSpendingsFromDb(explicitUid?: string | null): Promise<Spending[]> {
-    const uid = explicitUid || this.getCurrentUid();
-    if (!uid) return [];
-    try {
-      const dbSpendings = await SupabaseService.fetchSpendings(uid);
-      this.saveSpendings(dbSpendings, uid);
-      return dbSpendings;
-    } catch (e) {
-      console.warn('fetchSpendingsFromDb fallback to cache:', e);
-      return this.getSpendings(uid);
-    }
-  },
-
-  saveSpendings(spendings: Spending[], explicitUid?: string | null): void {
-    const uid = explicitUid || this.getCurrentUid();
-    if (!uid) return;
-    const key = this.getKey('spendings', uid);
-    localStorage.setItem(key, JSON.stringify(spendings));
-  },
-
-  async saveSpending(
-    spendingData: Omit<Spending, 'id' | 'createdAt'>,
-    existingId?: string,
-    explicitUid?: string | null
-  ): Promise<Spending> {
-    const uid = explicitUid || this.getCurrentUid();
-    const spendings = this.getSpendings(uid);
-    let spending: Spending;
-
-    if (existingId) {
-      const idx = spendings.findIndex(s => s.id === existingId);
-      if (idx !== -1) {
-        spending = {
-          ...spendings[idx],
-          ...spendingData
-        };
-        spendings[idx] = spending;
-      } else {
-        spending = {
-          ...spendingData,
-          id: existingId,
-          createdAt: new Date().toISOString()
-        };
-        spendings.push(spending);
-      }
-    } else {
-      spending = {
-        ...spendingData,
-        id: `sp-${Date.now()}`,
-        createdAt: new Date().toISOString()
-      };
-      spendings.unshift(spending);
-    }
-
-    this.saveSpendings(spendings, uid);
+    this.saveCachedSettings(newSettings, uid);
 
     if (uid) {
-      try {
-        await SupabaseService.upsertSpending(spending, uid);
-      } catch (err) {
-        console.warn('Background Supabase upsertSpending notice:', err);
-      }
+      await SupabaseService.updateProfileAndSettings(uid, {
+        companyName: newSettings.companyName,
+        companyAddress: newSettings.companyAddress,
+        companyWebsite: newSettings.companyWebsite,
+        companyEmail: newSettings.companyEmail,
+        companyLogo: newSettings.companyLogo,
+        defaultPaymentTerms: newSettings.defaultPaymentTerms
+      }, newSettings);
     }
 
-    this.logActivity({
-      type: 'spending_added',
-      title: 'Spending Expense Logged',
-      description: `${spending.item} - ${spending.resellerName}`,
-      amount: spending.amount
-    }, uid);
-
-    return spending;
+    return this.getCachedSettings(uid);
   },
 
-  async deleteSpending(spendingId: string, explicitUid?: string | null): Promise<void> {
-    const uid = explicitUid || this.getCurrentUid();
-    const spendings = this.getSpendings(uid).filter(s => s.id !== spendingId);
-    this.saveSpendings(spendings, uid);
+  // -----------------------------------------------------------------------
+  // 5. AUTH & REGISTRATION
+  // -----------------------------------------------------------------------
 
-    if (uid) {
-      try {
-        await SupabaseService.deleteSpending(spendingId, uid);
-      } catch (err) {
-        console.warn('Background Supabase deleteSpending notice:', err);
-      }
+  async registerUser(
+    payload: RegisterPayload
+  ): Promise<{ success: boolean; requiresVerification?: boolean; email?: string; user?: UserProfile; error?: string }> {
+    const res = await SupabaseService.signUp(payload);
+    if (!res.success) return { success: false, error: res.error };
+
+    if (res.requiresVerification) {
+      return { success: true, requiresVerification: true, email: payload.email.trim().toLowerCase() };
     }
 
-    this.logActivity({
-      type: 'spending_added',
-      title: 'Spending Record Removed',
-      description: 'Expense item deleted from ledger.'
-    }, uid);
-  },
-
-  // Activities (Strictly UID-isolated)
-  getActivities(explicitUid?: string | null): ActivityLog[] {
-    const uid = explicitUid || this.getCurrentUid();
-    if (!uid) return [];
-
-    try {
-      const key = this.getKey('activities', uid);
-      const data = localStorage.getItem(key);
-      if (data) {
-        return JSON.parse(data);
-      }
-    } catch {
-      // ignore
+    if (res.user) {
+      this.setUser(res.user);
+      this.saveCachedSettings({
+        companyName: payload.companyName,
+        companyAddress: payload.companyAddress,
+        companyWebsite: payload.companyWebsite,
+        companyEmail: payload.companyEmail,
+        companyLogo: payload.companyLogo,
+        defaultPaymentTerms: payload.defaultPaymentTerms
+      }, res.user.uid);
+      return { success: true, user: res.user };
     }
-    return [];
+
+    return { success: false, error: 'Registration failed.' };
   },
 
-  logActivity(activity: Omit<ActivityLog, 'id' | 'timestamp'>, explicitUid?: string | null): void {
-    const uid = explicitUid || this.getCurrentUid();
-    if (!uid) return;
-    const activities = this.getActivities(uid);
-    const newAct: ActivityLog = {
-      ...activity,
-      id: `act-${Date.now()}`,
-      timestamp: new Date().toISOString()
-    };
-    activities.unshift(newAct);
-    const key = this.getKey('activities', uid);
-    localStorage.setItem(key, JSON.stringify(activities.slice(0, 30)));
+  async loginUser(
+    email: string, 
+    passwordPlain: string
+  ): Promise<{ success: boolean; user?: UserProfile; error?: string }> {
+    const res = await SupabaseService.signIn(email, passwordPlain);
+    if (!res.success || !res.user) {
+      return { success: false, error: res.error || 'Invalid credentials.' };
+    }
+
+    this.setUser(res.user);
+    return { success: true, user: res.user };
   },
 
-  // Sign out helper
+  async verifyOtpAndCompleteRegistration(
+    email: string,
+    token: string,
+    pendingProfile?: Partial<RegisterPayload>
+  ): Promise<{ success: boolean; user?: UserProfile; error?: string }> {
+    const res = await SupabaseService.verifyOtp(email, token, pendingProfile);
+    if (res.success && res.user) {
+      this.setUser(res.user);
+    }
+    return res;
+  },
+
+  async resendVerificationCode(email: string): Promise<{ success: boolean; error?: string }> {
+    return SupabaseService.resendSignUpOtp(email);
+  },
+
+  async resetPassword(email: string): Promise<{ success: boolean; error?: string }> {
+    return SupabaseService.resetPasswordForEmail(email);
+  },
+
   async signOut(): Promise<void> {
-    try {
-      await SupabaseService.signOut();
-    } catch {
-      // ignore
-    }
+    await this.logoutUser();
+  },
+
+  async deleteAccountAndWipeAllData(explicitUid?: string | null): Promise<boolean> {
+    const uid = explicitUid || this.getCurrentUid();
+    if (!uid) return false;
+    await SupabaseService.wipeAllUserData(uid);
+    await this.logoutUser();
+    return true;
+  },
+
+  async logoutUser(): Promise<void> {
+    await SupabaseService.signOut();
     this.setUser(null);
   },
 
-  // Complete data deletion for user (Section 6 Privacy & Account Deletion)
-  async deleteAccountAndWipeAllData(explicitUid?: string | null): Promise<void> {
-    const uid = explicitUid || this.getCurrentUid();
-    
-    if (uid) {
-      try {
-        await SupabaseService.wipeAllUserData(uid);
-      } catch (err) {
-        console.warn('Supabase wipe error:', err);
-      }
+  // -----------------------------------------------------------------------
+  // 6. BACKUP IMPORT & EXPORT
+  // -----------------------------------------------------------------------
 
-      localStorage.removeItem(this.getKey('clients', uid));
-      localStorage.removeItem(this.getKey('invoices', uid));
-      localStorage.removeItem(this.getKey('spendings', uid));
-      localStorage.removeItem(this.getKey('settings', uid));
-      localStorage.removeItem(this.getKey('activities', uid));
-      localStorage.removeItem(this.getKey('profile', uid));
-    }
-
-    await this.signOut();
-  },
-
-  clearAllData(explicitUid?: string | null): void {
-    this.deleteAccountAndWipeAllData(explicitUid);
-  },
-
-  saveUser(user: UserProfile | null): void {
-    this.setUser(user);
-  },
-
-  // Export / Import isolated data
   exportFullBackup(explicitUid?: string | null): string {
     const uid = explicitUid || this.getCurrentUid();
-    const backup = {
-      version: '3.0.0',
-      backend: 'Supabase PostgreSQL',
-      uid,
+    const backupData = {
+      version: '2.0-supabase',
       exportedAt: new Date().toISOString(),
       user: this.getUser(),
-      settings: this.getSettings(uid),
-      clients: this.getClients(uid),
-      invoices: this.getInvoices(uid),
-      spendings: this.getSpendings(uid),
-      activities: this.getActivities(uid)
+      settings: this.getCachedSettings(uid),
+      clients: this.getCachedClients(uid),
+      invoices: this.getCachedInvoices(uid),
+      spendings: this.getCachedSpendings(uid)
     };
-    return JSON.stringify(backup, null, 2);
+    return JSON.stringify(backupData, null, 2);
   },
 
-  importFullBackup(jsonString: string, explicitUid?: string | null): boolean {
-    const uid = explicitUid || this.getCurrentUid();
-    if (!uid) return false;
+  async importFullBackup(jsonContent: string, explicitUid?: string | null): Promise<boolean> {
     try {
-      const parsed = JSON.parse(jsonString);
+      const parsed = JSON.parse(jsonContent);
+      const uid = explicitUid || this.getCurrentUid();
+      if (!uid) return false;
+
       if (Array.isArray(parsed.clients)) {
-        this.saveClients(parsed.clients, uid);
-        parsed.clients.forEach((c: ClientProject) => {
-          SupabaseService.upsertClient(c, uid).catch(console.warn);
-        });
+        for (const client of parsed.clients) {
+          await this.addClient(client, uid);
+        }
       }
-      if (Array.isArray(parsed.invoices)) {
-        this.saveInvoices(parsed.invoices, uid);
-        parsed.invoices.forEach((inv: Invoice) => {
-          SupabaseService.upsertInvoice(inv, uid).catch(console.warn);
-        });
-      }
+
       if (Array.isArray(parsed.spendings)) {
-        this.saveSpendings(parsed.spendings, uid);
-        parsed.spendings.forEach((sp: Spending) => {
-          SupabaseService.upsertSpending(sp, uid).catch(console.warn);
-        });
+        for (const sp of parsed.spendings) {
+          await this.addSpending(sp, uid);
+        }
       }
+
       if (parsed.settings) {
-        this.saveSettings(parsed.settings, uid);
+        await this.updateSettings(parsed.settings, uid);
       }
-      if (Array.isArray(parsed.activities)) {
-        const key = this.getKey('activities', uid);
-        localStorage.setItem(key, JSON.stringify(parsed.activities));
-      }
+
       return true;
     } catch (e) {
-      console.error('Failed to import backup:', e);
+      console.error('Backup import error:', e);
       return false;
     }
   }
