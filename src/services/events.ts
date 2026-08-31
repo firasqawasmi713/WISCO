@@ -45,19 +45,7 @@ function mapSupabaseRowToEvent(row: any): CalendarEvent {
 
   const rawStatus = row.status || (row.is_completed ? 'completed' : 'event');
   const isCompleted = rawStatus === 'completed' || Boolean(row.is_completed ?? row.isCompleted);
-  
-  const rawType = row.type || row.item_type || row.itemType;
-  let type: EventType = 'Event';
-  if (rawType) {
-    const lower = String(rawType).toLowerCase();
-    if (lower === 'event') type = 'Event';
-    else if (lower === 'task') type = 'Task';
-    else if (lower === 'meeting') type = 'Meeting';
-    else if (lower === 'other') type = 'Other';
-    else type = rawType as EventType;
-  } else if (rawStatus === 'completed' || rawStatus === 'pending') {
-    type = 'Task';
-  }
+  const type: EventType = row.type || (rawStatus === 'completed' || rawStatus === 'pending' ? 'task' : 'event');
 
   return {
     id: String(row.id),
@@ -103,8 +91,7 @@ function mapEventToSupabasePayload(event: CalendarEvent, userId?: string | null)
     endTimeISO = new Date().toISOString();
   }
 
-  const isTask = String(event.type).toLowerCase() === 'task';
-  const status = event.isCompleted ? 'completed' : (isTask ? 'pending' : 'event');
+  const status = event.isCompleted ? 'completed' : (event.type === 'task' ? 'pending' : 'event');
 
   const payload: Record<string, any> = {
     id: event.id,

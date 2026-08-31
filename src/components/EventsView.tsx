@@ -602,7 +602,7 @@ export const EventsView: React.FC<EventsViewProps> = ({
                                 >
                                   {event.category}
                                 </span>
-                                {String(event.type).toLowerCase() === 'task' && (
+                                {event.type === 'task' && (
                                   <span className={`text-[10px] font-semibold ${event.isCompleted ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
                                     {event.isCompleted ? '✓' : '●'}
                                   </span>
@@ -716,7 +716,7 @@ export const EventsView: React.FC<EventsViewProps> = ({
 
                       {/* Interactive Controls */}
                       <div className="flex items-center gap-2 self-end sm:self-center">
-                        {String(event.type).toLowerCase() === 'task' && (
+                        {event.type === 'task' && (
                           <button
                             type="button"
                             onClick={(e) => {
@@ -845,7 +845,7 @@ export const EventsView: React.FC<EventsViewProps> = ({
                           {item.startDate}
                         </span>
 
-                        {String(item.type).toLowerCase() === 'task' ? (
+                        {item.type === 'task' ? (
                           <button
                             type="button"
                             onClick={(e) => {
