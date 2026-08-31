@@ -259,22 +259,12 @@ export const EventsView: React.FC<EventsViewProps> = ({
 
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
           <div>
-            <div className="flex items-center gap-3 mb-1.5">
-              <div className="p-3 bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 rounded-2xl shadow-inner">
-                <CalendarIcon className="w-6 h-6" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2.5">
-                  {t.events}
-                  <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-400/30">
-                    {filteredEvents.length} {t.totalEvents}
-                  </span>
-                </h1>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {t.eventsSubtitle}
-                </p>
-              </div>
-            </div>
+            <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+              {t.events}
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              {t.eventsSubtitle}
+            </p>
           </div>
 
           {/* Quick Action Controls */}
@@ -772,23 +762,13 @@ export const EventsView: React.FC<EventsViewProps> = ({
         <div className="hidden lg:flex lg:col-span-4 h-full flex-col">
           <div className="bg-white dark:bg-[#0B1528] border border-slate-200 dark:border-blue-500/20 rounded-3xl p-5 shadow-[0_4px_25px_rgba(0,0,0,0.06)] dark:shadow-[0_0_20px_rgba(59,130,246,0.15)] flex flex-col h-full transition-all duration-300">
             {/* Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800/80 mb-4 shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-amber-50 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl border border-amber-200 dark:border-amber-500/30">
-                  <Pin className="w-4 h-4 fill-amber-500 dark:fill-amber-400" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
-                    {t.pinnedItems}
-                  </h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    {t.pinnedItemsDesc}
-                  </p>
-                </div>
-              </div>
-              <span className="px-2.5 py-0.5 text-xs font-black bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-400/30 rounded-lg">
-                {pinnedEvents.length}
-              </span>
+            <div className="pb-4 border-b border-slate-200 dark:border-slate-800/80 mb-4 shrink-0">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
+                {t.pinnedItems}
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                {t.pinnedItemsDesc}
+              </p>
             </div>
 
             {/* Pinned Cards Stack with internal scroll area */}
