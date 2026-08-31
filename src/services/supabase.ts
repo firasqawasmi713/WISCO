@@ -56,6 +56,9 @@ export function mapClientFromRow(row: any): ClientProject {
 
 export function mapClientToRow(client: Partial<ClientProject>, userId: string): Record<string, any> {
   const cleanId = client.id || `cli-${Date.now()}`;
+  const startDate = client.startDate || new Date().toISOString().split('T')[0];
+  const dueDate = client.dueDate || null;
+  
   return {
     id: cleanId,
     user_id: userId,
@@ -68,11 +71,13 @@ export function mapClientToRow(client: Partial<ClientProject>, userId: string): 
     category: client.category || 'General',
     cost: Number(client.cost || 0),
     operating_expenses: Number(client.operatingExpenses ?? 0),
-    start_date: client.startDate || new Date().toISOString().split('T')[0],
-    due_date: client.dueDate || null,
+    start_date: startDate,
+    due_date: dueDate,
+    end_date: dueDate,
     status: client.status || 'In Progress',
     notes: client.notes || '',
-    created_at: client.createdAt || new Date().toISOString()
+    created_at: client.createdAt || new Date().toISOString(),
+    updated_at: new Date().toISOString()
   };
 }
 
@@ -121,7 +126,7 @@ export function mapInvoiceToRow(invoice: Partial<Invoice>, userId: string): Reco
     id: cleanId,
     user_id: userId,
     invoice_number: invoice.invoiceNumber || 'INV-001',
-    client_id: invoice.clientId || '',
+    client_id: invoice.clientId || null,
     client_name: invoice.clientName || '',
     company_name: invoice.companyName || '',
     client_email: invoice.clientEmail || '',
@@ -140,7 +145,8 @@ export function mapInvoiceToRow(invoice: Partial<Invoice>, userId: string): Reco
     status: invoice.status || 'Pending',
     notes: invoice.notes || '',
     payment_terms: invoice.paymentTerms || '',
-    created_at: invoice.createdAt || new Date().toISOString()
+    created_at: invoice.createdAt || new Date().toISOString(),
+    updated_at: new Date().toISOString()
   };
 }
 
@@ -174,7 +180,8 @@ export function mapSpendingToRow(spending: Partial<Spending>, userId: string): R
     payment_method: spending.paymentMethod || 'Credit Card',
     receipt_number: spending.receiptNumber || '',
     notes: spending.notes || '',
-    created_at: spending.createdAt || new Date().toISOString()
+    created_at: spending.createdAt || new Date().toISOString(),
+    updated_at: new Date().toISOString()
   };
 }
 
@@ -513,21 +520,34 @@ export const SupabaseService = {
     }
   },
 
-  // 2. Profiles / Settings Database Operations
+  // 2. Profiles / Settings Database Operations (Supports both user_settings and profiles tables)
   async fetchProfileAndSettings(userId: string): Promise<{ profile: UserProfile | null; settings: Partial<AppSettings> | null }> {
     try {
-      const { data, error } = await supabase
+      // 1. Try user_settings table
+      const { data: settingsData } = await supabase
+        .from('user_settings')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (settingsData) {
+        const parsed = mapProfileFromRow(settingsData);
+        return { profile: parsed.profile, settings: parsed.settings };
+      }
+
+      // 2. Fallback to profiles table
+      const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
         .or(`id.eq.${userId},user_id.eq.${userId}`)
         .maybeSingle();
 
-      if (error || !data) {
-        return { profile: null, settings: null };
+      if (profileData) {
+        const parsed = mapProfileFromRow(profileData);
+        return { profile: parsed.profile, settings: parsed.settings };
       }
 
-      const parsed = mapProfileFromRow(data);
-      return { profile: parsed.profile, settings: parsed.settings };
+      return { profile: null, settings: null };
     } catch (e) {
       console.warn('fetchProfileAndSettings error:', e);
       return { profile: null, settings: null };
@@ -537,12 +557,11 @@ export const SupabaseService = {
   async updateProfileAndSettings(userId: string, profile: Partial<UserProfile>, settings?: Partial<AppSettings>): Promise<boolean> {
     try {
       const payload: Record<string, any> = {
-        id: userId,
         user_id: userId,
         updated_at: new Date().toISOString()
       };
 
-      if (profile.email) payload.email = profile.email;
+      if (profile.email) payload.company_email = profile.email;
       if (profile.companyName) payload.company_name = profile.companyName;
       if (profile.companyAddress) payload.company_address = profile.companyAddress;
       if (profile.companyWebsite) payload.company_website = profile.companyWebsite;
@@ -559,15 +578,17 @@ export const SupabaseService = {
         if (settings.defaultPaymentTerms !== undefined) payload.default_payment_terms = settings.defaultPaymentTerms;
       }
 
-      const { error } = await supabase
-        .from('profiles')
+      // Upsert to user_settings
+      const res1 = await supabase
+        .from('user_settings')
         .upsert(payload);
 
-      if (error) {
-        console.warn('Error updating profile in Supabase:', error.message);
-        return false;
-      }
-      return true;
+      // Upsert to profiles as well with id
+      await supabase
+        .from('profiles')
+        .upsert({ ...payload, id: userId });
+
+      return !res1.error;
     } catch (e) {
       console.warn('updateProfileAndSettings exception:', e);
       return false;

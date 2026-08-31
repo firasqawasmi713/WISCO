@@ -383,6 +383,19 @@ export const StorageService = {
     return [];
   },
 
+  async fetchClientsFromDb(explicitUid?: string | null): Promise<ClientProject[]> {
+    const uid = explicitUid || this.getCurrentUid();
+    if (!uid) return [];
+    try {
+      const dbClients = await SupabaseService.fetchClients(uid);
+      this.saveClients(dbClients, uid);
+      return dbClients;
+    } catch (e) {
+      console.warn('fetchClientsFromDb fallback to cache:', e);
+      return this.getClients(uid);
+    }
+  },
+
   saveClients(clients: ClientProject[], explicitUid?: string | null): void {
     const uid = explicitUid || this.getCurrentUid();
     if (!uid) return;
@@ -528,6 +541,19 @@ export const StorageService = {
     return [];
   },
 
+  async fetchInvoicesFromDb(explicitUid?: string | null): Promise<Invoice[]> {
+    const uid = explicitUid || this.getCurrentUid();
+    if (!uid) return [];
+    try {
+      const dbInvoices = await SupabaseService.fetchInvoices(uid);
+      this.saveInvoices(dbInvoices, uid);
+      return dbInvoices;
+    } catch (e) {
+      console.warn('fetchInvoicesFromDb fallback to cache:', e);
+      return this.getInvoices(uid);
+    }
+  },
+
   saveInvoices(invoices: Invoice[], explicitUid?: string | null): void {
     const uid = explicitUid || this.getCurrentUid();
     if (!uid) return;
@@ -575,6 +601,19 @@ export const StorageService = {
       // ignore
     }
     return [];
+  },
+
+  async fetchSpendingsFromDb(explicitUid?: string | null): Promise<Spending[]> {
+    const uid = explicitUid || this.getCurrentUid();
+    if (!uid) return [];
+    try {
+      const dbSpendings = await SupabaseService.fetchSpendings(uid);
+      this.saveSpendings(dbSpendings, uid);
+      return dbSpendings;
+    } catch (e) {
+      console.warn('fetchSpendingsFromDb fallback to cache:', e);
+      return this.getSpendings(uid);
+    }
   },
 
   saveSpendings(spendings: Spending[], explicitUid?: string | null): void {
