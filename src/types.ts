@@ -19,6 +19,7 @@ export interface CalendarEvent {
   priority: EventPriority;
   isPinned: boolean;
   isCompleted?: boolean;
+  status?: string;
   location?: string;
   assignedTo?: string;
   createdAt: string;

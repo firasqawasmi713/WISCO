@@ -1,133 +1,118 @@
 /**
  * Events and Calendar Service Layer
- * Provides modular CRUD operations with Supabase integration and offline fallback persistence.
+ * Clean Supabase Live Database Persistence with Optimistic State Management.
+ * Zero hardcoded mock/demo data — starts with pure empty state.
  */
 
-import { CalendarEvent } from '../types';
+import { CalendarEvent, EventPriority, EventType } from '../types';
 import { supabase, generateUUID } from './supabase';
 
-const EVENTS_STORAGE_PREFIX = 'wisco_events_';
+const EVENTS_STORAGE_PREFIX = 'wisco_events_v2_';
 
-// Generate dynamic realistic mock events centered on the active month
-export function getInitialMockEvents(): CalendarEvent[] {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const day = now.getDate();
+function mapSupabaseRowToEvent(row: any): CalendarEvent {
+  let startDate = new Date().toISOString().split('T')[0];
+  let startTime: string | undefined = undefined;
 
-  const formatDate = (offsetDays: number) => {
-    const d = new Date(year, month, day + offsetDays);
-    return d.toISOString().split('T')[0];
+  const rawStart = row.start_time || row.start_date || row.startDate;
+  if (rawStart) {
+    if (typeof rawStart === 'string' && rawStart.includes('T')) {
+      const parts = rawStart.split('T');
+      startDate = parts[0];
+      const timePart = parts[1].replace('Z', '').split('.')[0];
+      if (timePart && timePart.length >= 5) {
+        startTime = timePart.substring(0, 5);
+      }
+    } else {
+      startDate = String(rawStart).substring(0, 10);
+    }
+  }
+
+  let endDate: string | undefined = undefined;
+  let endTime: string | undefined = undefined;
+  const rawEnd = row.end_time || row.end_date || row.endDate;
+  if (rawEnd) {
+    if (typeof rawEnd === 'string' && rawEnd.includes('T')) {
+      const parts = rawEnd.split('T');
+      endDate = parts[0];
+      const timePart = parts[1].replace('Z', '').split('.')[0];
+      if (timePart && timePart.length >= 5) {
+        endTime = timePart.substring(0, 5);
+      }
+    } else {
+      endDate = String(rawEnd).substring(0, 10);
+    }
+  }
+
+  const rawStatus = row.status || (row.is_completed ? 'completed' : 'event');
+  const isCompleted = rawStatus === 'completed' || Boolean(row.is_completed ?? row.isCompleted);
+  const type: EventType = row.type || (rawStatus === 'completed' || rawStatus === 'pending' ? 'task' : 'event');
+
+  return {
+    id: String(row.id),
+    title: row.title || 'Untitled Item',
+    description: row.description || '',
+    type,
+    startDate,
+    endDate: endDate || startDate,
+    startTime: row.startTime || startTime,
+    endTime: row.endTime || endTime,
+    allDay: row.all_day ?? row.allDay ?? (!startTime && !endTime),
+    category: row.category || 'General',
+    color: row.color || (row.priority === 'urgent' ? '#EF4444' : row.priority === 'high' ? '#F59E0B' : '#3B82F6'),
+    priority: (row.priority as EventPriority) || 'medium',
+    isPinned: Boolean(row.is_pinned ?? row.isPinned),
+    isCompleted,
+    status: rawStatus,
+    location: row.location || '',
+    assignedTo: row.assigned_to || row.assignedTo || '',
+    createdAt: row.created_at || row.createdAt || new Date().toISOString(),
+    updatedAt: row.updated_at || row.updatedAt || new Date().toISOString()
+  };
+}
+
+function mapEventToSupabasePayload(event: CalendarEvent, userId?: string | null) {
+  let startTimeISO: string;
+  let endTimeISO: string;
+
+  try {
+    startTimeISO = event.startTime 
+      ? new Date(`${event.startDate}T${event.startTime}:00`).toISOString()
+      : new Date(`${event.startDate}T00:00:00`).toISOString();
+  } catch {
+    startTimeISO = new Date().toISOString();
+  }
+
+  const endDateStr = event.endDate || event.startDate;
+  try {
+    endTimeISO = event.endTime 
+      ? new Date(`${endDateStr}T${event.endTime}:00`).toISOString()
+      : new Date(`${endDateStr}T23:59:59`).toISOString();
+  } catch {
+    endTimeISO = new Date().toISOString();
+  }
+
+  const status = event.isCompleted ? 'completed' : (event.type === 'task' ? 'pending' : 'event');
+
+  const payload: Record<string, any> = {
+    id: event.id,
+    title: event.title,
+    description: event.description || '',
+    start_time: startTimeISO,
+    end_time: endTimeISO,
+    category: event.category || 'General',
+    priority: event.priority || 'medium',
+    is_pinned: Boolean(event.isPinned),
+    status,
+    color: event.color || '#3B82F6',
+    location: event.location || '',
+    assigned_to: event.assignedTo || ''
   };
 
-  return [
-    {
-      id: 'mock-event-1',
-      title: 'Q3 Agency Financial & Profit Review',
-      description: 'Quarterly board meeting to audit profit margins, client billings, and direct spendings across active engagements.',
-      type: 'event',
-      startDate: formatDate(0),
-      endDate: formatDate(0),
-      startTime: '10:00',
-      endTime: '11:30',
-      allDay: false,
-      category: 'Financial Review',
-      color: '#3B82F6', // Blue
-      priority: 'high',
-      isPinned: true,
-      location: 'Main Conference Room (Amman Headquarters)',
-      assignedTo: 'Executive Team',
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'mock-event-2',
-      title: 'Deliver Brand Identity Assets to TechCorp',
-      description: 'Handover finalized vector deliverables, invoice INV-0045, and brand guideline document.',
-      type: 'task',
-      startDate: formatDate(1),
-      endDate: formatDate(1),
-      startTime: '14:00',
-      endTime: '16:00',
-      allDay: false,
-      category: 'Deliverables',
-      color: '#EF4444', // Red
-      priority: 'urgent',
-      isPinned: true,
-      isCompleted: false,
-      location: 'Client Portal',
-      assignedTo: 'Design Lead',
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'mock-event-3',
-      title: 'Monthly Tax & VAT Filing Submission',
-      description: 'Submit monthly sales tax and corporate withholdings declarations to the tax authority portal.',
-      type: 'deadline',
-      startDate: formatDate(3),
-      endDate: formatDate(3),
-      startTime: '09:00',
-      endTime: '12:00',
-      allDay: true,
-      category: 'Tax & Compliance',
-      color: '#F59E0B', // Amber
-      priority: 'high',
-      isPinned: true,
-      isCompleted: false,
-      location: 'Government Tax Portal',
-      assignedTo: 'Chief Accountant',
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'mock-event-4',
-      title: 'New Client Strategy & Onboarding Call',
-      description: 'Introductory scope workshop with Apex Horizon executives to define project milestones and payment tranches.',
-      type: 'event',
-      startDate: formatDate(5),
-      endDate: formatDate(5),
-      startTime: '15:00',
-      endTime: '16:30',
-      allDay: false,
-      category: 'Client Meeting',
-      color: '#10B981', // Emerald
-      priority: 'medium',
-      isPinned: false,
-      location: 'Google Meet / Zoom',
-      assignedTo: 'Account Director',
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'mock-event-5',
-      title: 'Jordan Fintech & Banking Summit',
-      description: 'Annual conference focusing on regional payment gateways, digital invoicing, and SME financial tooling.',
-      type: 'milestone',
-      startDate: formatDate(-2),
-      endDate: formatDate(-2),
-      allDay: true,
-      category: 'Conference',
-      color: '#8B5CF6', // Purple
-      priority: 'medium',
-      isPinned: false,
-      location: 'Kempinski Hotel Amman',
-      assignedTo: 'All Partners',
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'mock-event-6',
-      title: 'WISCO Platform v2.7 Release Milestone',
-      description: 'Deploy real-time calendar and notifications architecture into production cluster.',
-      type: 'milestone',
-      startDate: formatDate(10),
-      endDate: formatDate(10),
-      allDay: true,
-      category: 'Engineering',
-      color: '#06B6D4', // Cyan
-      priority: 'high',
-      isPinned: false,
-      location: 'Cloud Ingress',
-      assignedTo: 'Tech Lead',
-      createdAt: new Date().toISOString()
-    }
-  ];
+  if (userId) {
+    payload.user_id = userId;
+  }
+
+  return payload;
 }
 
 export const EventsService = {
@@ -141,16 +126,14 @@ export const EventsService = {
       const raw = localStorage.getItem(key);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           return parsed;
         }
       }
     } catch (e) {
       console.warn('Error reading cached events:', e);
     }
-    const initial = getInitialMockEvents();
-    this.saveCachedEvents(initial, userId);
-    return initial;
+    return [];
   },
 
   saveCachedEvents(events: CalendarEvent[], userId?: string | null): void {
@@ -162,52 +145,39 @@ export const EventsService = {
     }
   },
 
-  // Fetch events from Supabase with fallback to cached/initial mock events
+  // Fetch events from Supabase with optimistic fallback
   async getEvents(userId?: string | null): Promise<CalendarEvent[]> {
     const cached = this.getCachedEvents(userId);
-    if (!userId) {
-      return cached;
-    }
 
     try {
-      const { data, error } = await supabase
-        .from('calendar_events')
-        .select('*')
-        .eq('user_id', userId)
-        .order('start_date', { ascending: true });
-
-      if (error) {
-        // Table might not exist yet in Supabase instance or schema not provisioned
-        console.warn('Supabase calendar_events fetch notice:', error.message);
-        return cached;
+      // Primary table 'events'
+      let query = supabase.from('events').select('*');
+      if (userId) {
+        query = query.eq('user_id', userId);
       }
+      const { data, error } = await query.order('start_time', { ascending: true });
 
-      if (data && data.length > 0) {
-        const mapped: CalendarEvent[] = data.map((row: any) => ({
-          id: String(row.id),
-          title: row.title || 'Untitled Event',
-          description: row.description || '',
-          type: row.type || 'event',
-          startDate: row.start_date || row.startDate || new Date().toISOString().split('T')[0],
-          endDate: row.end_date || row.endDate || undefined,
-          startTime: row.start_time || row.startTime || undefined,
-          endTime: row.end_time || row.endTime || undefined,
-          allDay: row.all_day ?? row.allDay ?? false,
-          category: row.category || 'General',
-          color: row.color || '#3B82F6',
-          priority: row.priority || 'medium',
-          isPinned: row.is_pinned ?? row.isPinned ?? false,
-          isCompleted: row.is_completed ?? row.isCompleted ?? false,
-          location: row.location || '',
-          assignedTo: row.assigned_to || row.assignedTo || '',
-          createdAt: row.created_at || new Date().toISOString(),
-          updatedAt: row.updated_at || new Date().toISOString()
-        }));
+      if (!error && data) {
+        const mapped: CalendarEvent[] = data.map(mapSupabaseRowToEvent);
         this.saveCachedEvents(mapped, userId);
         return mapped;
       }
+
+      // Fallback check to 'calendar_events' if 'events' table is not available
+      if (error) {
+        let altQuery = supabase.from('calendar_events').select('*');
+        if (userId) {
+          altQuery = altQuery.eq('user_id', userId);
+        }
+        const altRes = await altQuery.order('created_at', { ascending: false });
+        if (!altRes.error && altRes.data) {
+          const mapped: CalendarEvent[] = altRes.data.map(mapSupabaseRowToEvent);
+          this.saveCachedEvents(mapped, userId);
+          return mapped;
+        }
+      }
     } catch (err) {
-      console.warn('Events fetch exception:', err);
+      console.warn('Supabase events fetch notice:', err);
     }
 
     return cached;
@@ -220,42 +190,21 @@ export const EventsService = {
       createdAt: new Date().toISOString()
     };
 
-    // Update local cache immediately
+    // Optimistic cache update
     const current = this.getCachedEvents(userId);
     const updated = [newEvent, ...current];
     this.saveCachedEvents(updated, userId);
 
-    if (userId) {
-      try {
-        const payload = {
-          id: newEvent.id,
-          user_id: userId,
-          title: newEvent.title,
-          description: newEvent.description || '',
-          type: newEvent.type,
-          start_date: newEvent.startDate,
-          end_date: newEvent.endDate || null,
-          start_time: newEvent.startTime || null,
-          end_time: newEvent.endTime || null,
-          all_day: newEvent.allDay,
-          category: newEvent.category,
-          color: newEvent.color,
-          priority: newEvent.priority,
-          is_pinned: newEvent.isPinned,
-          is_completed: newEvent.isCompleted || false,
-          location: newEvent.location || '',
-          assigned_to: newEvent.assignedTo || '',
-          created_at: newEvent.createdAt,
-          updated_at: new Date().toISOString()
-        };
-
-        const { error } = await supabase.from('calendar_events').insert([payload]);
-        if (error) {
-          console.warn('Supabase calendar_events insert notice:', error.message);
-        }
-      } catch (err) {
-        console.warn('Failed to insert into Supabase calendar_events:', err);
+    // Supabase Live Insert
+    try {
+      const payload = mapEventToSupabasePayload(newEvent, userId);
+      const { error } = await supabase.from('events').insert([payload]);
+      if (error) {
+        // Fallback to calendar_events if table exists
+        await supabase.from('calendar_events').insert([payload]);
       }
+    } catch (err) {
+      console.warn('Supabase event insert notice:', err);
     }
 
     return newEvent;
@@ -267,43 +216,29 @@ export const EventsService = {
       updatedAt: new Date().toISOString()
     };
 
+    // Optimistic cache update
     const current = this.getCachedEvents(userId);
     const updated = current.map(e => e.id === updatedEvent.id ? updatedEvent : e);
     this.saveCachedEvents(updated, userId);
 
-    if (userId) {
-      try {
-        const payload = {
-          title: updatedEvent.title,
-          description: updatedEvent.description || '',
-          type: updatedEvent.type,
-          start_date: updatedEvent.startDate,
-          end_date: updatedEvent.endDate || null,
-          start_time: updatedEvent.startTime || null,
-          end_time: updatedEvent.endTime || null,
-          all_day: updatedEvent.allDay,
-          category: updatedEvent.category,
-          color: updatedEvent.color,
-          priority: updatedEvent.priority,
-          is_pinned: updatedEvent.isPinned,
-          is_completed: updatedEvent.isCompleted || false,
-          location: updatedEvent.location || '',
-          assigned_to: updatedEvent.assignedTo || '',
-          updated_at: new Date().toISOString()
-        };
-
-        const { error } = await supabase
-          .from('calendar_events')
-          .update(payload)
-          .eq('id', updatedEvent.id)
-          .eq('user_id', userId);
-
-        if (error) {
-          console.warn('Supabase calendar_events update notice:', error.message);
-        }
-      } catch (err) {
-        console.warn('Failed to update Supabase calendar_events:', err);
+    // Supabase Live Update
+    try {
+      const payload = mapEventToSupabasePayload(updatedEvent, userId);
+      let query = supabase.from('events').update(payload).eq('id', updatedEvent.id);
+      if (userId) {
+        query = query.eq('user_id', userId);
       }
+      const { error } = await query;
+      if (error) {
+        // Fallback to calendar_events
+        let altQuery = supabase.from('calendar_events').update(payload).eq('id', updatedEvent.id);
+        if (userId) {
+          altQuery = altQuery.eq('user_id', userId);
+        }
+        await altQuery;
+      }
+    } catch (err) {
+      console.warn('Supabase event update notice:', err);
     }
 
     return updatedEvent;
@@ -312,40 +247,101 @@ export const EventsService = {
   async togglePin(eventId: string, isPinned: boolean, userId?: string | null): Promise<CalendarEvent | null> {
     const current = this.getCachedEvents(userId);
     const target = current.find(e => e.id === eventId);
-    if (target) {
-      return await this.updateEvent({ ...target, isPinned }, userId);
+    if (!target) return null;
+
+    const updatedEvent: CalendarEvent = { ...target, isPinned, updatedAt: new Date().toISOString() };
+    
+    // Optimistic cache update
+    const updated = current.map(e => e.id === eventId ? updatedEvent : e);
+    this.saveCachedEvents(updated, userId);
+
+    // Supabase Live Toggle
+    try {
+      let query = supabase.from('events').update({ is_pinned: isPinned }).eq('id', eventId);
+      if (userId) {
+        query = query.eq('user_id', userId);
+      }
+      const { error } = await query;
+      if (error) {
+        let altQuery = supabase.from('calendar_events').update({ is_pinned: isPinned }).eq('id', eventId);
+        if (userId) {
+          altQuery = altQuery.eq('user_id', userId);
+        }
+        await altQuery;
+      }
+    } catch (err) {
+      console.warn('Supabase event toggle pin notice:', err);
     }
-    return null;
+
+    return updatedEvent;
   },
 
   async toggleCompleted(eventId: string, isCompleted: boolean, userId?: string | null): Promise<CalendarEvent | null> {
     const current = this.getCachedEvents(userId);
     const target = current.find(e => e.id === eventId);
-    if (target) {
-      return await this.updateEvent({ ...target, isCompleted }, userId);
+    if (!target) return null;
+
+    const newStatus = isCompleted ? 'completed' : (target.type === 'task' ? 'pending' : 'event');
+    const updatedEvent: CalendarEvent = { 
+      ...target, 
+      isCompleted, 
+      status: newStatus,
+      updatedAt: new Date().toISOString() 
+    };
+    
+    // Optimistic cache update
+    const updated = current.map(e => e.id === eventId ? updatedEvent : e);
+    this.saveCachedEvents(updated, userId);
+
+    // Supabase Live Status Update
+    try {
+      let query = supabase.from('events').update({ 
+        status: newStatus,
+        is_completed: isCompleted 
+      }).eq('id', eventId);
+      if (userId) {
+        query = query.eq('user_id', userId);
+      }
+      const { error } = await query;
+      if (error) {
+        let altQuery = supabase.from('calendar_events').update({ 
+          status: newStatus,
+          is_completed: isCompleted 
+        }).eq('id', eventId);
+        if (userId) {
+          altQuery = altQuery.eq('user_id', userId);
+        }
+        await altQuery;
+      }
+    } catch (err) {
+      console.warn('Supabase event toggle status notice:', err);
     }
-    return null;
+
+    return updatedEvent;
   },
 
   async deleteEvent(eventId: string, userId?: string | null): Promise<void> {
+    // Optimistic cache update
     const current = this.getCachedEvents(userId);
     const updated = current.filter(e => e.id !== eventId);
     this.saveCachedEvents(updated, userId);
 
-    if (userId) {
-      try {
-        const { error } = await supabase
-          .from('calendar_events')
-          .delete()
-          .eq('id', eventId)
-          .eq('user_id', userId);
-
-        if (error) {
-          console.warn('Supabase calendar_events delete notice:', error.message);
-        }
-      } catch (err) {
-        console.warn('Failed to delete from Supabase calendar_events:', err);
+    // Supabase Live Delete
+    try {
+      let query = supabase.from('events').delete().eq('id', eventId);
+      if (userId) {
+        query = query.eq('user_id', userId);
       }
+      const { error } = await query;
+      if (error) {
+        let altQuery = supabase.from('calendar_events').delete().eq('id', eventId);
+        if (userId) {
+          altQuery = altQuery.eq('user_id', userId);
+        }
+        await altQuery;
+      }
+    } catch (err) {
+      console.warn('Supabase event delete notice:', err);
     }
   }
 };

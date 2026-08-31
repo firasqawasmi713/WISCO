@@ -98,8 +98,8 @@ export const EventModal: React.FC<EventModalProps> = ({
         setCategory(initialEvent.category || 'General');
         setColor(initialEvent.color || '#3B82F6');
         setPriority(initialEvent.priority || 'medium');
-        setIsPinned(initialEvent.isPinned ?? false);
-        setIsCompleted(initialEvent.isCompleted ?? false);
+        setIsPinned(Boolean(initialEvent.isPinned));
+        setIsCompleted(Boolean(initialEvent.isCompleted));
         setLocation(initialEvent.location || '');
         setAssignedTo(initialEvent.assignedTo || '');
       } else {
@@ -128,11 +128,11 @@ export const EventModal: React.FC<EventModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
-      setError(isArabic ? 'يرجى إدخال عنوان الفعالية أو المهمة.' : 'Please enter an event or task title.');
+      setError(isArabic ? 'الرجاء إدخال عنوان للفعالية أو المهمة' : 'Please enter an event or task title');
       return;
     }
     if (!startDate) {
-      setError(isArabic ? 'يرجى تحديد تاريخ البدء.' : 'Please specify a start date.');
+      setError(isArabic ? 'الرجاء تحديد تاريخ البدء' : 'Please select a start date');
       return;
     }
 
@@ -173,23 +173,23 @@ export const EventModal: React.FC<EventModalProps> = ({
       aria-modal="true"
     >
       <div 
-        className="bg-slate-900 border border-slate-700/80 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-slate-100"
+        className="bg-white dark:bg-[#0B1528] border border-slate-200 dark:border-blue-500/30 w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-slate-900 dark:text-slate-100 transition-all duration-300"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="px-6 py-5 border-b border-slate-800 flex items-center justify-between bg-gradient-to-r from-slate-900 via-slate-900 to-blue-950/40">
+        <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-gradient-to-r dark:from-[#0B1528] dark:via-[#0B1528] dark:to-blue-950/40">
           <div className="flex items-center gap-3">
             <div 
-              className="w-10 h-10 rounded-xl flex items-center justify-center shadow-md"
+              className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-xs"
               style={{ backgroundColor: `${color}20`, border: `1.5px solid ${color}` }}
             >
               <CalendarIcon className="w-5 h-5" style={{ color }} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white tracking-tight">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
                 {initialEvent ? t.editEvent : t.createEvent}
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 {isArabic ? 'تخصيص الفعاليات والمهام وتثبيتها في اللوحة السريعة' : 'Manage schedule, actionable deadlines, and pinned priorities'}
               </p>
             </div>
@@ -198,7 +198,7 @@ export const EventModal: React.FC<EventModalProps> = ({
             id="btn-close-event-modal"
             type="button"
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition cursor-pointer"
+            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
@@ -208,7 +208,7 @@ export const EventModal: React.FC<EventModalProps> = ({
         {/* Modal Body */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5 flex-1 custom-scrollbar">
           {error && (
-            <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs flex items-center gap-2">
+            <div className="p-3.5 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl text-red-600 dark:text-red-400 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -216,7 +216,7 @@ export const EventModal: React.FC<EventModalProps> = ({
 
           {/* Item Type Selector */}
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
               {t.eventType}
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -237,8 +237,8 @@ export const EventModal: React.FC<EventModalProps> = ({
                     }}
                     className={`py-2.5 px-3 rounded-xl text-xs font-semibold border transition text-center cursor-pointer ${
                       isSelected 
-                        ? 'bg-blue-600/20 border-blue-500 text-blue-300 shadow-sm' 
-                        : 'bg-slate-800/60 border-slate-700/60 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                        ? 'bg-blue-50 dark:bg-blue-600/20 border-blue-500 text-blue-600 dark:text-blue-300 shadow-xs' 
+                        : 'bg-slate-50 dark:bg-[#101F3C]/60 border-slate-200 dark:border-slate-700/60 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#101F3C]'
                     }`}
                   >
                     {label}
@@ -250,8 +250,8 @@ export const EventModal: React.FC<EventModalProps> = ({
 
           {/* Title Input */}
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
-              {t.eventTitle} <span className="text-red-400">*</span>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+              {t.eventTitle} <span className="text-red-500 dark:text-red-400">*</span>
             </label>
             <input
               id="event-input-title"
@@ -260,23 +260,23 @@ export const EventModal: React.FC<EventModalProps> = ({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder={t.eventTitlePlaceholder}
-              className="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="w-full bg-slate-50 dark:bg-[#101F3C] border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-xs"
             />
           </div>
 
           {/* Date & Time Row */}
-          <div className="p-4 bg-slate-800/40 border border-slate-800 rounded-xl space-y-3">
+          <div className="p-4 bg-slate-50 dark:bg-[#101F3C]/40 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-blue-400" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
                 {t.eventStartDate} & {t.eventEndDate}
               </span>
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-300 select-none">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700 dark:text-slate-300 select-none">
                 <input
                   type="checkbox"
                   checked={allDay}
                   onChange={(e) => setAllDay(e.target.checked)}
-                  className="rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500"
+                  className="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-blue-600 focus:ring-blue-500"
                 />
                 {t.allDay}
               </label>
@@ -284,7 +284,7 @@ export const EventModal: React.FC<EventModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] text-slate-400 mb-1">{t.eventStartDate}</label>
+                <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">{t.eventStartDate}</label>
                 <input
                   type="date"
                   required
@@ -295,39 +295,39 @@ export const EventModal: React.FC<EventModalProps> = ({
                       setEndDate(e.target.value);
                     }
                   }}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-white dark:bg-[#0B1528] border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 shadow-xs"
                 />
               </div>
               <div>
-                <label className="block text-[11px] text-slate-400 mb-1">{t.eventEndDate}</label>
+                <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">{t.eventEndDate}</label>
                 <input
                   type="date"
                   value={endDate}
                   min={startDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-white dark:bg-[#0B1528] border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 shadow-xs"
                 />
               </div>
             </div>
 
             {!allDay && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-slate-800/60">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200 dark:border-slate-800/60">
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">{t.eventStartTime}</label>
+                  <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">{t.eventStartTime}</label>
                   <input
                     type="time"
                     value={startTime}
                     onChange={(e) => setStartTime(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                    className="w-full bg-white dark:bg-[#0B1528] border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 shadow-xs"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">{t.eventEndTime}</label>
+                  <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">{t.eventEndTime}</label>
                   <input
                     type="time"
                     value={endTime}
                     onChange={(e) => setEndTime(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                    className="w-full bg-white dark:bg-[#0B1528] border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 shadow-xs"
                   />
                 </div>
               </div>
@@ -337,7 +337,7 @@ export const EventModal: React.FC<EventModalProps> = ({
           {/* Category & Priority Row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1.5">
                 <Tag className="w-3.5 h-3.5 text-slate-400" />
                 {t.eventCategory}
               </label>
@@ -347,7 +347,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 placeholder="e.g. Deliverables"
-                className="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 dark:bg-[#101F3C] border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 shadow-xs"
               />
               <datalist id="category-options">
                 {CATEGORY_SUGGESTIONS.map((cat) => (
@@ -357,11 +357,11 @@ export const EventModal: React.FC<EventModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1.5">
                 <Flag className="w-3.5 h-3.5 text-slate-400" />
                 {t.eventPriority}
               </label>
-              <div className="grid grid-cols-4 gap-1 bg-slate-800/80 p-1 border border-slate-700 rounded-xl">
+              <div className="grid grid-cols-4 gap-1 bg-slate-100 dark:bg-[#101F3C] p-1 border border-slate-200 dark:border-slate-700 rounded-xl">
                 {(['low', 'medium', 'high', 'urgent'] as EventPriority[]).map((p) => {
                   const isSelected = priority === p;
                   let pLabel = t.priorityLow;
@@ -377,11 +377,11 @@ export const EventModal: React.FC<EventModalProps> = ({
                       className={`py-1.5 text-[11px] font-semibold rounded-lg transition cursor-pointer ${
                         isSelected 
                           ? p === 'urgent' 
-                            ? 'bg-red-500 text-white shadow-sm'
+                            ? 'bg-red-500 text-white shadow-xs'
                             : p === 'high'
-                            ? 'bg-amber-500 text-white shadow-sm'
-                            : 'bg-blue-600 text-white shadow-sm'
-                          : 'text-slate-400 hover:text-white'
+                            ? 'bg-amber-500 text-white shadow-xs'
+                            : 'bg-blue-600 text-white shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                       }`}
                     >
                       {pLabel}
@@ -394,8 +394,8 @@ export const EventModal: React.FC<EventModalProps> = ({
 
           {/* Color Accent Picker */}
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-blue-500 dark:text-sky-400" />
               {t.eventColor}
             </label>
             <div className="flex flex-wrap items-center gap-2.5">
@@ -406,7 +406,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                   onClick={() => setColor(preset.hex)}
                   title={preset.name}
                   className={`w-7 h-7 rounded-full transition-transform cursor-pointer relative flex items-center justify-center ${
-                    color === preset.hex ? 'scale-125 ring-2 ring-white shadow-lg' : 'hover:scale-110 opacity-80 hover:opacity-100'
+                    color === preset.hex ? 'scale-125 ring-2 ring-blue-500 ring-offset-2 dark:ring-white shadow-md' : 'hover:scale-110 opacity-80 hover:opacity-100'
                   }`}
                   style={{ backgroundColor: preset.hex }}
                 >
@@ -421,7 +421,7 @@ export const EventModal: React.FC<EventModalProps> = ({
           {/* Optional Meta: Location & Assignee */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5 text-slate-400" />
                 {t.eventLocation}
               </label>
@@ -430,11 +430,11 @@ export const EventModal: React.FC<EventModalProps> = ({
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 placeholder="Room, Zoom Link, Office..."
-                className="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 dark:bg-[#101F3C] border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 shadow-xs"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1.5">
                 <User className="w-3.5 h-3.5 text-slate-400" />
                 {t.eventAssignedTo}
               </label>
@@ -443,14 +443,14 @@ export const EventModal: React.FC<EventModalProps> = ({
                 value={assignedTo}
                 onChange={(e) => setAssignedTo(e.target.value)}
                 placeholder="Team member or lead..."
-                className="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 dark:bg-[#101F3C] border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 shadow-xs"
               />
             </div>
           </div>
 
           {/* Description & Agenda */}
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1.5">
               <AlignLeft className="w-3.5 h-3.5 text-slate-400" />
               {t.eventDescription}
             </label>
@@ -459,26 +459,26 @@ export const EventModal: React.FC<EventModalProps> = ({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder={t.eventDescriptionPlaceholder}
-              className="w-full bg-slate-800/80 border border-slate-700 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 resize-none"
+              className="w-full bg-slate-50 dark:bg-[#101F3C] border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 resize-none shadow-xs"
             />
           </div>
 
           {/* Toggles: Pin to Dashboard & Task Completed Checkbox */}
-          <div className="p-4 bg-slate-800/50 border border-slate-700/60 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="p-4 bg-slate-50 dark:bg-[#101F3C]/50 border border-slate-200 dark:border-slate-700/60 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <label className="flex items-center gap-2.5 cursor-pointer select-none">
               <div 
                 onClick={() => setIsPinned(!isPinned)}
                 className={`w-6 h-6 rounded-lg flex items-center justify-center transition border ${
                   isPinned 
-                    ? 'bg-amber-500/20 border-amber-400 text-amber-300' 
-                    : 'bg-slate-800 border-slate-700 text-slate-400'
+                    ? 'bg-amber-50 dark:bg-amber-500/20 border-amber-400 text-amber-600 dark:text-amber-300' 
+                    : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-400'
                 }`}
               >
-                <Pin className={`w-3.5 h-3.5 ${isPinned ? 'fill-amber-400 text-amber-400' : ''}`} />
+                <Pin className={`w-3.5 h-3.5 ${isPinned ? 'fill-amber-500 dark:fill-amber-400 text-amber-500 dark:text-amber-400' : ''}`} />
               </div>
               <div>
-                <span className="text-xs font-bold text-white block">{t.pinToDashboard}</span>
-                <span className="text-[10px] text-slate-400 block">{t.pinnedItemsDesc}</span>
+                <span className="text-xs font-bold text-slate-900 dark:text-white block">{t.pinToDashboard}</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 block">{t.pinnedItemsDesc}</span>
               </div>
             </label>
 
@@ -488,9 +488,9 @@ export const EventModal: React.FC<EventModalProps> = ({
                   type="checkbox"
                   checked={isCompleted}
                   onChange={(e) => setIsCompleted(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-emerald-500 focus:ring-emerald-500"
+                  className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-emerald-500 focus:ring-emerald-500"
                 />
-                <span className={`text-xs font-bold ${isCompleted ? 'text-emerald-400 line-through' : 'text-slate-300'}`}>
+                <span className={`text-xs font-bold ${isCompleted ? 'text-emerald-600 dark:text-emerald-400 line-through' : 'text-slate-700 dark:text-slate-300'}`}>
                   {t.isCompleted}
                 </span>
               </label>
@@ -499,30 +499,30 @@ export const EventModal: React.FC<EventModalProps> = ({
 
           {/* Delete confirmation section when editing */}
           {initialEvent && (
-            <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
               {!showDeleteConfirm ? (
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="px-3 py-2 text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition flex items-center gap-1.5 cursor-pointer"
+                  className="px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   {t.deleteEvent}
                 </button>
               ) : (
-                <div className="flex items-center gap-2 bg-red-500/10 p-2 rounded-lg border border-red-500/30">
-                  <span className="text-xs text-red-300">{isArabic ? 'تأكيد الحذف؟' : 'Delete item?'}</span>
+                <div className="flex items-center gap-2 bg-red-50 dark:bg-red-500/10 p-2 rounded-xl border border-red-200 dark:border-red-500/30">
+                  <span className="text-xs text-red-700 dark:text-red-300">{isArabic ? 'تأكيد الحذف؟' : 'Delete item?'}</span>
                   <button
                     type="button"
                     onClick={handleDelete}
-                    className="px-2.5 py-1 bg-red-600 text-white rounded text-xs font-bold hover:bg-red-700 cursor-pointer"
+                    className="px-2.5 py-1 bg-red-600 text-white rounded-lg text-xs font-bold hover:bg-red-700 cursor-pointer"
                   >
                     {isArabic ? 'نعم' : 'Yes'}
                   </button>
                   <button
                     type="button"
                     onClick={() => setShowDeleteConfirm(false)}
-                    className="px-2.5 py-1 bg-slate-700 text-slate-300 rounded text-xs font-medium hover:bg-slate-600 cursor-pointer"
+                    className="px-2.5 py-1 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-medium hover:bg-slate-300 dark:hover:bg-slate-600 cursor-pointer"
                   >
                     {isArabic ? 'إلغاء' : 'Cancel'}
                   </button>
@@ -533,11 +533,11 @@ export const EventModal: React.FC<EventModalProps> = ({
         </form>
 
         {/* Modal Footer */}
-        <div className="px-6 py-4 border-t border-slate-800 bg-slate-900/90 flex items-center justify-end gap-3">
+        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0B1528] flex items-center justify-end gap-3">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition cursor-pointer"
+            className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
           >
             {t.cancel}
           </button>
@@ -545,7 +545,7 @@ export const EventModal: React.FC<EventModalProps> = ({
             id="btn-save-event"
             type="button"
             onClick={handleSubmit}
-            className="px-5 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-900/40 transition cursor-pointer flex items-center gap-2"
+            className="px-5 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-500/25 dark:shadow-[0_0_15px_rgba(56,189,248,0.25)] transition cursor-pointer flex items-center gap-2"
           >
             <CheckSquare className="w-4 h-4" />
             {initialEvent ? t.saveChanges : t.addEvent}
