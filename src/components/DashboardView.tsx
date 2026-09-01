@@ -12,7 +12,8 @@ import {
   Building2,
   PieChart as PieIcon,
   BarChart3,
-  RefreshCw
+  RefreshCw,
+  HelpCircle
 } from 'lucide-react';
 import { Chart, registerables } from 'chart.js';
 import { ClientProject, Invoice, Spending, CalendarEvent, CurrencyCode, LanguageCode, NavTab, ActivityLog } from '../types';
@@ -25,6 +26,7 @@ import {
   ProjectBreakdownChartSkeleton,
   OperationalFeedSkeleton
 } from './SkeletonLoaders';
+import { startAnimatedTour } from '../utils/tourService';
 
 Chart.register(...registerables);
 
@@ -80,6 +82,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const categoryChartRef = useRef<HTMLCanvasElement | null>(null);
   const categoryChartInstance = useRef<Chart | null>(null);
+
+  // Automatic Animated Tour Trigger for First-Time Users
+  useEffect(() => {
+    if (isLoading) return;
+
+    const hasSeenTour = localStorage.getItem('wisco_tour_seen');
+    if (!hasSeenTour) {
+      const timer = setTimeout(() => {
+        startAnimatedTour();
+        localStorage.setItem('wisco_tour_seen', 'true');
+      }, 700);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading]);
 
   // Financial Calculations
   const totalRevenue = clients.reduce((sum, c) => sum + (Number(c.cost) || 0), 0);
@@ -275,7 +292,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   return (
     <div id="dashboard-view-root" className="space-y-6 pb-12">
       {/* Welcome Banner with Quick Actions */}
-      <div className="bg-gradient-to-r from-[#0F284E] via-[#1E3A8A] to-[#2563EB] rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
+      <div 
+        id="wisco-banner" 
+        className="bg-gradient-to-r from-[#0F284E] via-[#1E3A8A] to-[#2563EB] rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden"
+      >
         <div className="relative z-10 max-w-xl">
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
             WISCO Financial Suite
@@ -286,6 +306,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         <div className="relative z-10 flex flex-wrap items-center gap-3">
+          {/* Manual Replay Tour Button */}
+          <button
+            id="dash-btn-take-tour"
+            onClick={() => startAnimatedTour()}
+            title={isArabic ? 'جولة تعريفية' : 'Start interactive tour'}
+            className="px-3 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl border border-white/20 backdrop-blur-sm transition-all flex items-center gap-1.5 font-bold text-xs cursor-pointer"
+          >
+            <HelpCircle className="w-4 h-4 text-sky-300" />
+            <span className="hidden sm:inline">{isArabic ? 'جولة سريعة' : 'Tour'}</span>
+          </button>
+
           {onRefresh && (
             <button
               id="dash-btn-refresh-data"
@@ -320,7 +351,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {isLoading ? (
         <KpiCardsSkeleton />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+        <div id="wisco-kpis" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
           {/* Total Revenue */}
           <div 
             id="kpi-card-total-revenue"
