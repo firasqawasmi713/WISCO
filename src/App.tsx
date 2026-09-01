@@ -133,13 +133,18 @@ export default function App() {
         EventsService.getEvents(targetUid)
       ]);
 
-      setClients(dbClients);
-      setInvoices(dbInvoices);
-      setSpendings(dbSpendings);
-      setSettings(appSettings);
-      setEvents(dbEvents);
+      setClients(dbClients || []);
+      setInvoices(dbInvoices || []);
+      setSpendings(dbSpendings || []);
+      setSettings(appSettings || StorageService.getCachedSettings(targetUid));
+      setEvents(dbEvents || []);
     } catch (err) {
-      console.warn('Supabase fetch error:', err);
+      console.warn('Supabase fetch error, fallback to default/cached state:', err);
+      // Fallback gracefully so tour and UI continue to function without blocking
+      setClients(prev => prev.length > 0 ? prev : StorageService.getCachedClients(targetUid));
+      setInvoices(prev => prev.length > 0 ? prev : StorageService.getCachedInvoices(targetUid));
+      setSpendings(prev => prev.length > 0 ? prev : StorageService.getCachedSpendings(targetUid));
+      setSettings(prev => prev || StorageService.getCachedSettings(targetUid));
     } finally {
       setIsSyncing(false);
       setIsLoading(false);
@@ -153,8 +158,12 @@ export default function App() {
     async function initializeSessionAndData() {
       setIsLoading(true);
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
         
+        if (sessionErr) {
+          console.warn('Get session notice:', sessionErr.message);
+        }
+
         if (session?.user) {
           const uid = session.user.id;
           
@@ -172,9 +181,13 @@ export default function App() {
             agreedToPrivacyPolicy: true
           };
 
-          const profileRes = await SupabaseService.fetchProfileAndSettings(uid);
-          if (profileRes.profile) {
-            userProfile = { ...userProfile, ...profileRes.profile };
+          try {
+            const profileRes = await SupabaseService.fetchProfileAndSettings(uid);
+            if (profileRes.profile) {
+              userProfile = { ...userProfile, ...profileRes.profile };
+            }
+          } catch (pErr) {
+            console.warn('Profile fetch fallback to session metadata:', pErr);
           }
 
           if (isMounted) {
@@ -197,8 +210,11 @@ export default function App() {
           }
         }
       } catch (err) {
-        console.error('Session initialization error:', err);
-        if (isMounted) setIsLoading(false);
+        console.error('Session initialization error, falling back to local state:', err);
+        if (isMounted) {
+          setIsLoading(false);
+          setIsSyncing(false);
+        }
       }
     }
 

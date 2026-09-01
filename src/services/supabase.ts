@@ -607,7 +607,7 @@ export const SupabaseService = {
   // 2. Profiles / Settings Database Operations
   async fetchProfileAndSettings(userId: string): Promise<{ profile: UserProfile | null; settings: Partial<AppSettings> | null }> {
     try {
-      // 1. Try user_settings table
+      // 1. Try user_settings table matching on user_id
       const { data: settingsData } = await supabase
         .from('user_settings')
         .select('*')
@@ -619,11 +619,11 @@ export const SupabaseService = {
         return { profile: parsed.profile, settings: parsed.settings };
       }
 
-      // 2. Fallback to profiles table
+      // 2. Fallback to profiles table with direct ID match (avoiding malformed .or syntax)
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
-        .or(`id.eq.${userId},user_id.eq.${userId}`)
+        .eq('id', userId)
         .maybeSingle();
 
       if (profileData) {
@@ -893,6 +893,7 @@ export const SupabaseService = {
         supabase.from('clients').delete().eq('user_id', userId),
         supabase.from('spendings').delete().eq('user_id', userId),
         supabase.from('user_settings').delete().eq('user_id', userId),
+        supabase.from('profiles').delete().eq('id', userId),
         supabase.from('profiles').delete().eq('user_id', userId)
       ]);
       return true;
