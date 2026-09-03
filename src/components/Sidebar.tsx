@@ -14,6 +14,11 @@ import { TRANSLATIONS } from '../constants/translations';
 import { formatCurrency } from '../constants/currencies';
 import TeamModal from './TeamModal';
 
+interface TabPermission {
+  view: boolean;
+  edit: boolean;
+}
+
 interface SidebarProps {
   currentTab: NavTab;
   onSelectTab: (tab: NavTab) => void;
@@ -22,6 +27,8 @@ interface SidebarProps {
   onOpenPrivacyPolicy: () => void;
   totalRevenue: number;
   currency: CurrencyCode;
+  role?: string | null;
+  permissions?: Record<string, TabPermission> | null;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -30,11 +37,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   lang,
   onOpenPrivacyPolicy,
   totalRevenue,
-  currency
+  currency,
+  role,
+  permissions
 }) => {
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
   const isArabic = lang === 'ar';
+
+  const isOwnerOrAdmin = role === 'owner' || role === 'admin';
 
   const navItems: { id: NavTab; label: string; icon: React.ReactNode }[] = [
     { id: 'dashboard', label: t.dashboard, icon: <LayoutDashboard className="w-5 h-5" /> },
@@ -44,6 +55,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'events', label: t.events, icon: <Calendar className="w-5 h-5" /> },
     { id: 'reports', label: t.reports, icon: <FileSpreadsheet className="w-5 h-5" /> }
   ];
+
+  // If role is owner or admin, show all tabs.
+  // Otherwise, filter items by permissions[tabId].view. If no permissions object exists, default to visible.
+  const visibleNavItems = navItems.filter((item) => {
+    if (isOwnerOrAdmin) return true;
+    if (!permissions) return true;
+    return permissions[item.id]?.view ?? true;
+  });
 
   return (
     <>
@@ -75,7 +94,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Navigation Links */}
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto py-2">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const active = currentTab === item.id;
             return (
               <button
@@ -96,18 +115,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
             );
           })}
 
-          {/* Team / Workspace Management Action */}
-          <button
-            type="button"
-            id="sidebar-btn-manage-team"
-            onClick={() => setIsTeamModalOpen(true)}
-            className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl font-medium text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all cursor-pointer border border-transparent hover:border-white/10"
-          >
-            <UserPlus className="w-5 h-5 text-indigo-400" />
-            <span className="flex-1 text-left rtl:text-right font-semibold">
-              {isArabic ? 'إدارة الفريق' : 'Manage Team'}
-            </span>
-          </button>
+          {/* Team / Workspace Management Action (Visible only to owners and admins) */}
+          {isOwnerOrAdmin && (
+            <button
+              type="button"
+              id="sidebar-btn-manage-team"
+              onClick={() => setIsTeamModalOpen(true)}
+              className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl font-medium text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all cursor-pointer border border-transparent hover:border-white/10 mt-2"
+            >
+              <UserPlus className="w-5 h-5 text-indigo-400" />
+              <span className="flex-1 text-left rtl:text-right font-semibold">
+                {isArabic ? 'إدارة الفريق' : 'Manage Team'}
+              </span>
+            </button>
+          )}
         </nav>
 
         {/* Footer Info & Privacy */}
