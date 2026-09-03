@@ -1,8 +1,12 @@
 {
-  "name": "react-example",
+  "name": "wisco",
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
