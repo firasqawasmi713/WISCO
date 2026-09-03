@@ -1,4 +1,10 @@
-import { supabase } from '../supabaseClient'; // Make sure this matches the path to your existing Supabase client instance
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize the Supabase client using Vite environment variables
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // 1. Create a new company and make the caller the owner
 export async function createCompany(companyName) {
