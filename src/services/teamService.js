@@ -18,7 +18,7 @@ export async function getCurrentUserMembership() {
 
   const { data, error } = await supabase
     .from('company_members')
-    .select('company_id, role, companies(name)')
+    .select('company_id, role')
     .eq('user_id', user.id)
     .maybeSingle();
 
