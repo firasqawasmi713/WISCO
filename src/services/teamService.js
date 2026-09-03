@@ -1,15 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-
-// Fallback to your active Supabase project endpoint if env vars are not set
-const supabaseUrl =
-  import.meta.env.VITE_SUPABASE_URL ||
-  'https://cplbrwzfgfvquolfowt.supabase.co';
-
-const supabaseAnonKey =
-  import.meta.env.VITE_SUPABASE_ANON_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholderKey'; // Replace with your real Supabase anon key if not using env vars
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { supabase } from './supabase';
 
 // 1. Create a new company and make the caller the owner
 export async function createCompany(companyName) {
