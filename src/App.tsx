@@ -17,6 +17,7 @@ import {
 import { StorageService } from './services/storage';
 import { EventsService } from './services/events';
 import { supabase, SupabaseService } from './services/supabase';
+import { getCurrentUserMembership } from './services/teamService';
 import { TRANSLATIONS } from './constants/translations';
 import { CheckCircle2, AlertCircle, RefreshCw, Loader2, CloudCheck } from 'lucide-react';
 
@@ -38,9 +39,17 @@ import { AuthModal } from './components/AuthModal';
 import { PrivacyPolicyModal } from './components/PrivacyPolicyModal';
 import { DeleteConfirmModal } from './components/DeleteConfirmModal';
 
+interface MembershipState {
+  company_id: string;
+  role: string;
+  department?: string;
+  permissions?: Record<string, { view: boolean; edit: boolean }>;
+}
+
 export default function App() {
   // 1. Initial State
   const [user, setUser] = useState<UserProfile | null>(() => StorageService.getUser());
+  const [membership, setMembership] = useState<MembershipState | null>(null);
   const [settings, setSettings] = useState<AppSettings>(() => StorageService.getCachedSettings());
   const [currentTab, setCurrentTab] = useState<TabType>('dashboard');
 
@@ -125,12 +134,16 @@ export default function App() {
   const fetchSupabaseData = useCallback(async (targetUid: string) => {
     setIsSyncing(true);
     try {
-      const [dbClients, dbInvoices, dbSpendings, appSettings, dbEvents] = await Promise.all([
+      const [dbClients, dbInvoices, dbSpendings, appSettings, dbEvents, userMembership] = await Promise.all([
         StorageService.getClients(targetUid),
         StorageService.getInvoices(targetUid),
         StorageService.getSpendings(targetUid),
         StorageService.getSettings(targetUid),
-        EventsService.getEvents(targetUid)
+        EventsService.getEvents(targetUid),
+        getCurrentUserMembership().catch((err) => {
+          console.warn('Membership fetch warning:', err);
+          return null;
+        })
       ]);
 
       setClients(dbClients || []);
@@ -138,9 +151,9 @@ export default function App() {
       setSpendings(dbSpendings || []);
       setSettings(appSettings || StorageService.getCachedSettings(targetUid));
       setEvents(dbEvents || []);
+      setMembership(userMembership as MembershipState | null);
     } catch (err) {
       console.warn('Supabase fetch error, fallback to default/cached state:', err);
-      // Fallback gracefully so tour and UI continue to function without blocking
       setClients(prev => prev.length > 0 ? prev : StorageService.getCachedClients(targetUid));
       setInvoices(prev => prev.length > 0 ? prev : StorageService.getCachedInvoices(targetUid));
       setSpendings(prev => prev.length > 0 ? prev : StorageService.getCachedSpendings(targetUid));
@@ -198,9 +211,9 @@ export default function App() {
 
           await fetchSupabaseData(uid);
         } else {
-          // No active auth session
           if (isMounted) {
             setUser(null);
+            setMembership(null);
             setClients([]);
             setInvoices([]);
             setSpendings([]);
@@ -220,7 +233,7 @@ export default function App() {
 
     initializeSessionAndData();
 
-    // Listen to Supabase auth events (SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED)
+    // Listen to Supabase auth events
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         const uid = session.user.id;
@@ -230,9 +243,11 @@ export default function App() {
       } else if (event === 'SIGNED_OUT') {
         if (isMounted) {
           setUser(null);
+          setMembership(null);
           setClients([]);
           setInvoices([]);
           setSpendings([]);
+          setEvents([]);
           setAuthModalOpen(true);
         }
       }
@@ -279,7 +294,6 @@ export default function App() {
         await StorageService.addClient(clientData, targetUid);
       }
 
-      // Re-fetch clean dataset from Supabase
       if (targetUid) {
         const [updatedClients, updatedInvoices] = await Promise.all([
           StorageService.getClients(targetUid),
@@ -551,6 +565,7 @@ export default function App() {
   const handleSignOut = async () => {
     await StorageService.logoutUser();
     setUser(null);
+    setMembership(null);
     setClients([]);
     setInvoices([]);
     setSpendings([]);
@@ -577,6 +592,7 @@ export default function App() {
         await SupabaseService.wipeAllUserData(user.uid);
         await StorageService.logoutUser();
         setUser(null);
+        setMembership(null);
         setClients([]);
         setInvoices([]);
         setSpendings([]);
@@ -603,8 +619,8 @@ export default function App() {
           className={`fixed top-5 right-5 z-50 px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-md border flex items-center gap-3 transition-all animate-bounce duration-300 text-sm font-medium ${
             toast.type === 'success' 
               ? 'bg-emerald-900/90 border-emerald-500/40 text-emerald-100' 
-              : toast.type === 'error'
-              ? 'bg-rose-900/90 border-rose-500/40 text-rose-100'
+              : toast.type === 'error' 
+              ? 'bg-rose-900/90 border-rose-500/40 text-rose-100' 
               : 'bg-slate-900/90 border-slate-700 text-slate-100'
           }`}
         >
@@ -629,7 +645,7 @@ export default function App() {
 
       {/* Main Layout Area */}
       <div className="flex-1 flex max-w-[1600px] w-full mx-auto">
-        {/* Desktop Sidebar */}
+        {/* Desktop Sidebar with Role & Permission Filtering */}
         <Sidebar
           currentTab={currentTab}
           onSelectTab={setCurrentTab}
@@ -638,6 +654,8 @@ export default function App() {
           onOpenPrivacyPolicy={() => setPrivacyPolicyOpen(true)}
           totalRevenue={totalRevenue}
           currency={settings.currency}
+          role={membership?.role}
+          permissions={membership?.permissions}
         />
 
         {/* Dynamic Tab Content Area */}
