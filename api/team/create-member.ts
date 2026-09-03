@@ -1,36 +1,58 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseAdmin = createClient(
-  process.env.VITE_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // Kept secure on server
+  process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
 export default async function handler(req: any, res: any) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   const { email, password, role, department, permissions, companyId } = req.body;
 
-  // 1. Create auth user with pre-set password & auto-confirm email
-  const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true
-  });
+  if (!email || !password || !companyId) {
+    return res.status(400).json({ error: 'Missing required parameters' });
+  }
 
-  if (authError) return res.status(400).json({ error: authError.message });
+  try {
+    // 1. Create the auth user with predetermined password & confirmed email
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { company_id: companyId }
+    });
 
-  // 2. Link the created user directly into company_members
-  const { data: memberData, error: memberError } = await supabaseAdmin
-    .from('company_members')
-    .insert([{
-      company_id: companyId,
-      user_id: authData.user.id,
-      role,
-      department,
-      permissions
-    }])
-    .select()
-    .single();
+    if (authError) throw authError;
 
-  if (memberError) return res.status(400).json({ error: memberError.message });
+    // 2. Insert member record with department and custom permissions
+    const { data: memberData, error: memberError } = await supabaseAdmin
+      .from('company_members')
+      .insert([
+        {
+          company_id: companyId,
+          user_id: authData.user.id,
+          role: role || 'member',
+          department: department || 'General',
+          permissions: permissions || {
+            dashboard: { view: true, edit: false },
+            clients: { view: true, edit: false },
+            invoices: { view: false, edit: false },
+            spendings: { view: false, edit: false },
+            events: { view: true, edit: false },
+            reports: { view: false, edit: false }
+          }
+        }
+      ])
+      .select()
+      .single();
 
-  return res.status(200).json({ success: true, member: memberData });
+    if (memberError) throw memberError;
+
+    return res.status(200).json({ success: true, member: memberData });
+  } catch (error: any) {
+    return res.status(400).json({ error: error.message || 'Error creating team member' });
+  }
 }
