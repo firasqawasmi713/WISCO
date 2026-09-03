@@ -9,7 +9,7 @@ export async function createCompany(companyName) {
   return data;
 }
 
-// 2. Fetch the current logged-in user's role and company
+// 2. Fetch the current logged-in user's role, department, permissions, and company
 export async function getCurrentUserMembership() {
   const {
     data: { user }
@@ -18,7 +18,7 @@ export async function getCurrentUserMembership() {
 
   const { data, error } = await supabase
     .from('company_members')
-    .select('company_id, role')
+    .select('company_id, role, department, permissions')
     .eq('user_id', user.id)
     .maybeSingle();
 
@@ -47,16 +47,8 @@ export async function inviteEmployee(email, role, companyId) {
   return invite;
 }
 
-export interface CreateMemberPayload {
-  email: string;
-  password?: string;
-  role: string;
-  department: string;
-  companyId: string;
-  permissions: Record<string, { view: boolean; edit: boolean }>;
-}
-
-export async function createDirectMember(payload: CreateMemberPayload) {
+// 4. Provision a member directly with credentials and permissions via serverless function
+export async function createDirectMember(payload) {
   const response = await fetch('/api/team/create-member', {
     method: 'POST',
     headers: {
