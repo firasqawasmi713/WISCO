@@ -1,8 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize the Supabase client using Vite environment variables
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+// Fallback to your active Supabase project endpoint if env vars are not set
+const supabaseUrl =
+  import.meta.env.VITE_SUPABASE_URL ||
+  'https://cplbrwzfgfvquolfowt.supabase.co';
+
+const supabaseAnonKey =
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholderKey'; // Replace with your real Supabase anon key if not using env vars
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -12,19 +17,21 @@ export async function createCompany(companyName) {
     company_name: companyName
   });
   if (error) throw error;
-  return data; // returns company_id
+  return data;
 }
 
 // 2. Fetch the current logged-in user's role and company
 export async function getCurrentUserMembership() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
   if (!user) return null;
 
   const { data, error } = await supabase
     .from('company_members')
     .select('company_id, role, companies(name)')
     .eq('user_id', user.id)
-    .single();
+    .maybeSingle();
 
   if (error) throw error;
   return data;
