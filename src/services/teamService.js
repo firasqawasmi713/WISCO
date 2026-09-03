@@ -46,3 +46,30 @@ export async function inviteEmployee(email, role, companyId) {
   if (authError) throw authError;
   return invite;
 }
+
+export interface CreateMemberPayload {
+  email: string;
+  password?: string;
+  role: string;
+  department: string;
+  companyId: string;
+  permissions: Record<string, { view: boolean; edit: boolean }>;
+}
+
+export async function createDirectMember(payload: CreateMemberPayload) {
+  const response = await fetch('/api/team/create-member', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to create team member');
+  }
+
+  return data;
+}
