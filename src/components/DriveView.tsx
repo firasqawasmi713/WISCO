@@ -12,7 +12,7 @@ import {
   FileText, 
   Image as ImageIcon 
 } from 'lucide-react';
-import { supabase } from './services/supabase';
+import { supabase } from '../services/supabase';
 
 interface DriveFile {
   id: string;
