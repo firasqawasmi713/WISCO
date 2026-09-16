@@ -1,4 +1,4 @@
-export type NavTab = 'dashboard' | 'clients' | 'invoices' | 'spendings' | 'events' | 'reports' | 'account';
+export type NavTab = 'dashboard' | 'clients' | 'invoices' | 'spendings' | 'events' | 'reports' | 'account' | 'drive';
 export type TabType = NavTab;
 
 export type EventType = 'event' | 'task' | 'milestone' | 'deadline';
