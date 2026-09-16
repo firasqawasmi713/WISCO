@@ -35,6 +35,7 @@ import { EventsView } from './components/EventsView';
 import { EventModal } from './components/EventModal';
 import { ReportsView } from './components/ReportsView';
 import { AccountView } from './components/AccountView';
+import { DriveView } from './components/DriveView';
 import { AuthModal } from './components/AuthModal';
 import { PrivacyPolicyModal } from './components/PrivacyPolicyModal';
 import { DeleteConfirmModal } from './components/DeleteConfirmModal';
@@ -313,7 +314,7 @@ export default function App() {
         settings.language === 'ar' ? 'حدث خطأ أثناء حفظ المشروع' : 'Error saving client project',
         'error'
       );
-    } finally {
+    } stroke {
       setIsSyncing(false);
     }
   };
@@ -741,6 +742,10 @@ export default function App() {
               lang={settings.language}
               settings={settings}
             />
+          )}
+
+          {(currentTab as string) === 'drive' && (
+            <DriveView />
           )}
 
           {currentTab === 'account' && (
