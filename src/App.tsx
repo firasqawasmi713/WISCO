@@ -314,7 +314,7 @@ export default function App() {
         settings.language === 'ar' ? 'حدث خطأ أثناء حفظ المشروع' : 'Error saving client project',
         'error'
       );
-} stroke {
+} finally {
       setIsSyncing(false);
     }
   };
