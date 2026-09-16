@@ -56,29 +56,61 @@ export const DriveView: React.FC = () => {
     if (!file) return;
 
     setUploading(true);
-    const filePath = `drive/${Date.now()}_${file.name}`;
 
-    const { error: storageError } = await supabase.storage
-      .from('company_drive')
-      .upload(filePath, file);
+    // Clean file name to remove special characters and place directly at root level
+    const cleanFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const filePath = `${Date.now()}_${cleanFileName}`;
 
-    if (!storageError) {
-      await supabase.from('files').insert({
+    try {
+      // 1. Upload to Supabase Storage
+      const { data: storageData, error: storageError } = await supabase.storage
+        .from('company_drive')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (storageError) {
+        console.error('Storage Upload Error:', storageError);
+        alert(`Storage Error: ${storageError.message}`);
+        setUploading(false);
+        return;
+      }
+
+      // 2. Insert record into database table
+      const { error: dbError } = await supabase.from('files').insert({
         name: file.name,
         file_path: filePath,
         file_size: file.size,
-        mime_type: file.type,
+        mime_type: file.type || 'application/octet-stream',
       });
-      fetchFiles();
+
+      if (dbError) {
+        console.error('Database Insert Error:', dbError);
+        alert(`Database Error: ${dbError.message}`);
+      } else {
+        fetchFiles();
+      }
+    } catch (err) {
+      console.error('Unexpected error during upload:', err);
+      alert('An unexpected error occurred during file upload.');
+    } finally {
+      setUploading(false);
+      // Reset input value to allow re-uploading the same file if needed
+      e.target.value = '';
     }
-    setUploading(false);
   };
 
   // Handle Download
   const handleDownload = async (filePath: string, fileName: string) => {
-    const { data } = await supabase.storage
+    const { data, error } = await supabase.storage
       .from('company_drive')
       .createSignedUrl(filePath, 60);
+
+    if (error) {
+      alert(`Download Error: ${error.message}`);
+      return;
+    }
 
     if (data?.signedUrl) {
       const a = document.createElement('a');
@@ -100,6 +132,8 @@ export const DriveView: React.FC = () => {
       setRenamingId(null);
       setNewName('');
       fetchFiles();
+    } else {
+      alert(`Rename Error: ${error.message}`);
     }
   };
 
@@ -114,6 +148,8 @@ export const DriveView: React.FC = () => {
     if (!storageError) {
       await supabase.from('files').delete().eq('id', id);
       fetchFiles();
+    } else {
+      alert(`Delete Error: ${storageError.message}`);
     }
   };
 
