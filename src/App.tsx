@@ -857,5 +857,6 @@ export default function App() {
         lang={settings.language}
       />
     </div>
-  );
+  ); 
+  
 }
