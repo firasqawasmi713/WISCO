@@ -103,6 +103,20 @@ export const DriveView: React.FC = () => {
     }
   };
 
+  // Handle Delete
+  const handleDelete = async (id: string, filePath: string) => {
+    if (!window.confirm('Are you sure you want to delete this file?')) return;
+
+    const { error: storageError } = await supabase.storage
+      .from('company_drive')
+      .remove([filePath]);
+
+    if (!storageError) {
+      await supabase.from('files').delete().eq('id', id);
+      fetchFiles();
+    }
+  };
+
   // Share via WhatsApp
   const shareWhatsApp = async (filePath: string) => {
     const { data } = await supabase.storage
@@ -165,7 +179,7 @@ export const DriveView: React.FC = () => {
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm px-3 py-2 text-slate-700 dark:text-slate-300"
+            className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm px-3 py-2 text-slate-700 dark:text-slate-300 outline-none"
           >
             <option value="all">All File Types</option>
             <option value="pdf">PDF Documents</option>
@@ -185,47 +199,59 @@ export const DriveView: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-            {files.map((file) => (
-              <tr key={file.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
-                <td className="p-4 flex items-center gap-3">
-                  {file.mime_type.includes('image') ? (
-                    <ImageIcon className="w-5 h-5 text-blue-500" />
-                  ) : (
-                    <FileText className="w-5 h-5 text-emerald-500" />
-                  )}
-                  {renamingId === file.id ? (
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        defaultValue={file.name}
-                        onChange={(e) => setNewName(e.target.value)}
-                        className="border px-2 py-1 rounded text-sm text-slate-800"
-                      />
-                      <button onClick={() => handleRename(file.id)} className="text-xs bg-emerald-600 text-white px-2 py-1 rounded">Save</button>
+            {files.length > 0 ? (
+              files.map((file) => (
+                <tr key={file.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
+                  <td className="p-4 flex items-center gap-3">
+                    {file.mime_type.includes('image') ? (
+                      <ImageIcon className="w-5 h-5 text-blue-500" />
+                    ) : (
+                      <FileText className="w-5 h-5 text-emerald-500" />
+                    )}
+                    {renamingId === file.id ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          defaultValue={file.name}
+                          onChange={(e) => setNewName(e.target.value)}
+                          className="border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 rounded text-sm text-slate-800 dark:text-white outline-none"
+                        />
+                        <button onClick={() => handleRename(file.id)} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded transition-colors">Save</button>
+                        <button onClick={() => setRenamingId(null)} className="text-xs bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-2.5 py-1 rounded">Cancel</button>
+                      </div>
+                    ) : (
+                      <span className="font-medium text-slate-800 dark:text-white">{file.name}</span>
+                    )}
+                  </td>
+                  <td className="p-4">{(file.file_size / (1024 * 1024)).toFixed(2)} MB</td>
+                  <td className="p-4 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <button onClick={() => handleDownload(file.file_path, file.name)} title="Download" className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-500 hover:text-blue-600 transition-colors">
+                        <Download className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => { setRenamingId(file.id); setNewName(file.name); }} title="Rename" className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-500 hover:text-amber-600 transition-colors">
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => shareWhatsApp(file.file_path)} title="Share on WhatsApp" className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-500 hover:text-emerald-600 transition-colors">
+                        <MessageSquare className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => shareEmail(file.file_path, file.name)} title="Share via Email" className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-500 hover:text-indigo-600 transition-colors">
+                        <Mail className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleDelete(file.id, file.file_path)} title="Delete File" className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg text-slate-500 hover:text-rose-600 transition-colors">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                  ) : (
-                    <span className="font-medium text-slate-800 dark:text-white">{file.name}</span>
-                  )}
-                </td>
-                <td className="p-4">{(file.file_size / (1024 * 1024)).toFixed(2)} MB</td>
-                <td className="p-4 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <button onClick={() => handleDownload(file.file_path, file.name)} title="Download" className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-500 hover:text-blue-600">
-                      <Download className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => { setRenamingId(file.id); setNewName(file.name); }} title="Rename" className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-500 hover:text-amber-600">
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => shareWhatsApp(file.file_path)} title="Share on WhatsApp" className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-500 hover:text-emerald-600">
-                      <MessageSquare className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => shareEmail(file.file_path, file.name)} title="Share via Email" className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-500 hover:text-indigo-600">
-                      <Mail className="w-4 h-4" />
-                    </button>
-                  </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={3} className="p-8 text-center text-slate-400">
+                  No files found. Click "Upload Files" to get started.
                 </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>
