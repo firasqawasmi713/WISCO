@@ -57,17 +57,18 @@ export const DriveView: React.FC = () => {
 
     setUploading(true);
 
-    // Clean file name to remove special characters and place directly at root level
-    const cleanFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const filePath = `${Date.now()}_${cleanFileName}`;
-
     try {
-      // 1. Upload to Supabase Storage
+      // 1. Sanitize filename (remove spaces & special characters)
+      const cleanFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const filePath = `${Date.now()}_${cleanFileName}`;
+
+      // 2. Upload directly to root of 'company_drive' bucket
       const { data: storageData, error: storageError } = await supabase.storage
         .from('company_drive')
         .upload(filePath, file, {
           cacheControl: '3600',
-          upsert: false
+          upsert: true,
+          contentType: file.type || 'application/octet-stream'
         });
 
       if (storageError) {
@@ -77,7 +78,7 @@ export const DriveView: React.FC = () => {
         return;
       }
 
-      // 2. Insert record into database table
+      // 3. Save metadata to database table
       const { error: dbError } = await supabase.from('files').insert({
         name: file.name,
         file_path: filePath,
@@ -91,12 +92,11 @@ export const DriveView: React.FC = () => {
       } else {
         fetchFiles();
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Unexpected error during upload:', err);
-      alert('An unexpected error occurred during file upload.');
+      alert(`Upload Error: ${err.message || 'Failed to upload'}`);
     } finally {
       setUploading(false);
-      // Reset input value to allow re-uploading the same file if needed
       e.target.value = '';
     }
   };
