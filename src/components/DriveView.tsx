@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../services/supabase'; // Adjust path if your supabase client is located elsewhere
+import { supabase } from '../services/supabase';
 import { Upload, Download, Trash2, File, Loader2 } from 'lucide-react';
 
 interface DriveViewProps {
@@ -31,13 +31,12 @@ export const DriveView: React.FC<DriveViewProps> = ({ userId, lang = 'en' }) => 
       setLoading(true);
       setErrorMessage('');
 
-      // List all files in the bucket
       const { data, error } = await supabase.storage
         .from(BUCKET_NAME)
         .list('', {
           limit: 100,
           offset: 0,
-          sortBy: { column: 'created_at', order: 'desc' }
+          sortBy: { column: 'created_at', order: 'desc' },
         });
 
       if (error) throw error;
@@ -62,7 +61,7 @@ export const DriveView: React.FC<DriveViewProps> = ({ userId, lang = 'en' }) => 
       setUploading(true);
       setErrorMessage('');
 
-      // Safe clean filename without special characters
+      // Clean file name to avoid invalid URL characters
       const cleanFileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
 
       const { error } = await supabase.storage
@@ -79,7 +78,6 @@ export const DriveView: React.FC<DriveViewProps> = ({ userId, lang = 'en' }) => 
     } catch (err: any) {
       console.error('Storage Upload Error:', err);
       setErrorMessage(err.message || 'Failed to upload file');
-      alert(`Storage Error: ${err.message || 'HTTP 400 error'}`);
     } finally {
       setUploading(false);
     }
