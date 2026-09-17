@@ -3,9 +3,12 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { query, category } = req.body || {};
+  const { query, category, userId } = req.body || {};
   if (!query) {
     return res.status(400).json({ error: 'Search query is required' });
+  }
+  if (!userId) {
+    return res.status(401).json({ error: 'User must be authenticated' });
   }
 
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
@@ -27,7 +30,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    // 1. Monthly quota safeguard (Max 3,000 places/month to ensure $0 cost)
+    // 1. Monthly quota check (Max 3,000 total across the app to stay $0)
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
@@ -76,8 +79,9 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ message: 'No places found for this query', inserted: 0 });
     }
 
-    // 3. Format and clean records
+    // 3. Format leads with user_id attached
     const leadsToInsert = data.places.map((place: any) => ({
+      user_id: userId,
       place_id: place.id,
       name: place.displayName?.text || 'Unknown',
       category: category || place.primaryType || 'General',
@@ -86,8 +90,8 @@ export default async function handler(req: any, res: any) {
       email: null
     }));
 
-    // 4. Save to Supabase via REST upsert (resolution=ignore-duplicates)
-    const insertRes = await fetch(`${supabaseUrl}/rest/v1/business_leads`, {
+    // 4. Save to Supabase resolving on (user_id, place_id)
+    const insertRes = await fetch(`${supabaseUrl}/rest/v1/business_leads?on_conflict=user_id,place_id`, {
       method: 'POST',
       headers: {
         'apikey': supabaseKey,
