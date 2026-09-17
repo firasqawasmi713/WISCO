@@ -16,9 +16,9 @@ export default async function handler(req: any, res: any) {
   }
 
   const supabaseUrl = 
-    process.env.VITE_SUPABASE_URL || 
     process.env.SUPABASE_URL || 
-    'https://cplbrwzgfqfuolfowt.supabase.co';
+    process.env.VITE_SUPABASE_URL || 
+    'https://cplbrwzfgfvqfuolfowt.supabase.co';
 
   const supabaseKey = 
     process.env.SUPABASE_SERVICE_ROLE_KEY || 
@@ -28,7 +28,18 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: 'Missing Supabase service role or anon key in Vercel' });
   }
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  // Serverless backend client with Realtime WebSockets disabled
+  const supabase = createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+    realtime: {
+      params: {
+        eventsPerSecond: 0,
+      },
+    },
+  });
 
   try {
     // 1. Monthly quota safeguard (Max 3,000 places/month to ensure zero surprise costs)
