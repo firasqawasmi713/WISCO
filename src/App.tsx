@@ -25,6 +25,8 @@ import { CheckCircle2, AlertCircle, RefreshCw, Loader2, CloudCheck } from 'lucid
 import { Sidebar } from './components/Sidebar';
 import { Navbar } from './components/Navbar';
 import { DashboardView } from './components/DashboardView';
+import { OperationsHubView } from './components/OperationsHubView';
+import { WorkspaceHubView } from './components/WorkspaceHubView';
 import { ClientsView } from './components/ClientsView';
 import { ClientModal } from './components/ClientModal';
 import { InvoicesView } from './components/InvoicesView';
@@ -681,6 +683,72 @@ export default function App() {
               onOpenAddSpending={handleOpenAddSpending}
               onAddEvent={handleOpenAddEvent}
               onToggleCompletedEvent={handleToggleCompletedEvent}
+            />
+          )}
+
+          {/* Hub Navigation Breadcrumbs */}
+          {(currentTab === 'clients' || currentTab === 'invoices') && (
+            <div className="mb-5 flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
+              <button
+                type="button"
+                onClick={() => setCurrentTab('operations')}
+                className="hover:text-blue-600 dark:hover:text-sky-400 transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <span>{settings.language === 'ar' ? '← العودة إلى مركز العمليات' : '← Back to Operations Hub'}</span>
+              </button>
+              <span className="opacity-40">/</span>
+              <span className="text-slate-800 dark:text-slate-200">
+                {currentTab === 'clients' ? TRANSLATIONS[settings.language]?.clients || 'Clients' : TRANSLATIONS[settings.language]?.invoices || 'Invoices'}
+              </span>
+            </div>
+          )}
+
+          {(currentTab === 'spendings' || currentTab === 'reports' || currentTab === 'events' || currentTab === 'drive') && (
+            <div className="mb-5 flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
+              <button
+                type="button"
+                onClick={() => setCurrentTab('workspace')}
+                className="hover:text-blue-600 dark:hover:text-sky-400 transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <span>{settings.language === 'ar' ? '← العودة إلى مركز مساحة العمل' : '← Back to Workspace Hub'}</span>
+              </button>
+              <span className="opacity-40">/</span>
+              <span className="text-slate-800 dark:text-slate-200">
+                {currentTab === 'spendings' 
+                  ? (TRANSLATIONS[settings.language]?.spendings || 'Spendings')
+                  : currentTab === 'reports'
+                  ? (TRANSLATIONS[settings.language]?.reports || 'Reports')
+                  : currentTab === 'events'
+                  ? (TRANSLATIONS[settings.language]?.events || 'Events')
+                  : (TRANSLATIONS[settings.language]?.drive || 'Drive')}
+              </span>
+            </div>
+          )}
+
+          {/* Operations Hub View */}
+          {currentTab === 'operations' && (
+            <OperationsHubView
+              clients={clients}
+              invoices={invoices}
+              currency={settings.currency}
+              lang={settings.language}
+              onNavigate={setCurrentTab}
+              onAddClient={handleOpenAddClient}
+            />
+          )}
+
+          {/* Workspace Hub View */}
+          {currentTab === 'workspace' && (
+            <WorkspaceHubView
+              spendings={spendings}
+              events={events}
+              clients={clients}
+              invoices={invoices}
+              currency={settings.currency}
+              lang={settings.language}
+              onNavigate={setCurrentTab}
+              onAddSpending={handleOpenAddSpending}
+              onAddEvent={handleOpenAddEvent}
             />
           )}
 
