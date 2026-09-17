@@ -5,7 +5,8 @@ import {
   LayoutGrid, 
   ShieldCheck,
   ChevronRight,
-  ChevronLeft
+  ChevronLeft,
+  Radar
 } from 'lucide-react';
 import { NavTab, LanguageCode, UserProfile, CurrencyCode } from '../types';
 import { TRANSLATIONS } from '../constants/translations';
@@ -62,6 +63,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       active: isWorkspaceActive,
       badge: '4',
       description: isArabic ? 'المصروفات، التقارير، السحاب' : 'Expenses, Reports, Drive'
+    },
+    { 
+      id: 'leads' as NavTab, 
+      label: isArabic ? 'استكشاف العملاء' : 'Lead Discovery', 
+      icon: <Radar className="w-5 h-5" />,
+      active: currentTab === 'leads',
+      badge: 'New',
+      description: isArabic ? 'استخراج أرقام الشركات' : 'Places & Phone Extractor'
     }
   ];
 
