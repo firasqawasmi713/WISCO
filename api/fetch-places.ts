@@ -30,7 +30,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    // 1. Monthly quota check (Max 3,000 total across the app to stay $0)
+    // 1. Monthly quota safeguard (Max 3,000 places/month to guarantee $0 cost)
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
