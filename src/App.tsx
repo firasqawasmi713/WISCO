@@ -9,7 +9,7 @@ import {
   ClientProject, 
   Invoice, 
   Spending, 
-  CalendarEvent,
+  CalendarEvent, 
   AppSettings, 
   UserProfile, 
   InvoiceStatus 
@@ -648,8 +648,8 @@ export default function App() {
       <div className="flex-1 flex max-w-[1600px] w-full mx-auto">
         {/* Desktop Sidebar with Role & Permission Filtering */}
         <Sidebar
-          currentTab={currentTab}
-          onSelectTab={setCurrentTab}
+          currentTab={currentTab as any}
+          onSelectTab={(tab) => setCurrentTab(tab as TabType)}
           lang={settings.language}
           user={user}
           onOpenPrivacyPolicy={() => setPrivacyPolicyOpen(true)}
@@ -744,8 +744,11 @@ export default function App() {
             />
           )}
 
-          {(currentTab as string) === 'drive' && (
-            <DriveView />
+          {((currentTab as string) === 'drive') && (
+            <DriveView 
+              userId={user?.uid}
+              lang={settings.language}
+            />
           )}
 
           {currentTab === 'account' && (
