@@ -3,7 +3,7 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { query, category, userId } = req.body || {};
+  const { query, category, userId, limit = 20 } = req.body || {};
   if (!query) {
     return res.status(400).json({ error: 'Search query is required' });
   }
@@ -13,7 +13,7 @@ export default async function handler(req: any, res: any) {
 
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: 'Missing GOOGLE_PLACES_API_KEY environment variable in Vercel' });
+    return res.status(500).json({ error: 'Missing GOOGLE_PLACES_API_KEY in Vercel' });
   }
 
   const supabaseUrl = 
@@ -30,7 +30,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    // 1. Monthly quota safeguard (Max 3,000 places/month to guarantee $0 cost)
+    // 1. Check monthly safety limit (3,000 places total)
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
@@ -55,32 +55,57 @@ export default async function handler(req: any, res: any) {
       return res.status(429).json({ error: 'Free monthly quota safety limit (3,000) reached.' });
     }
 
-    // 2. Query Google Places API (New) Text Search
-    const googleRes = await fetch('https://places.googleapis.com/v1/places:searchText', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.primaryType,places.nationalPhoneNumber,places.websiteUri'
-      },
-      body: JSON.stringify({
+    // 2. Fetch Places from Google (supporting pagination up to requested limit)
+    const targetCount = Math.min(Math.max(Number(limit) || 20, 1), 60); // Cap per run at 60
+    let accumulatedPlaces: any[] = [];
+    let nextPageToken: string | null = null;
+
+    do {
+      const pageSize = Math.min(targetCount - accumulatedPlaces.length, 20);
+      const payload: any = {
         textQuery: query,
-        pageSize: 20
-      })
-    });
+        pageSize: pageSize
+      };
+      if (nextPageToken) {
+        payload.pageToken = nextPageToken;
+      }
 
-    const data = await googleRes.json();
+      const googleRes = await fetch('https://places.googleapis.com/v1/places:searchText', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': apiKey,
+          'X-Goog-FieldMask': 'places.id,places.displayName,places.primaryType,places.nationalPhoneNumber,places.websiteUri,nextPageToken'
+        },
+        body: JSON.stringify(payload)
+      });
 
-    if (data.error) {
-      return res.status(400).json({ error: `Google API error: ${data.error.message || data.error.status}` });
-    }
+      const data = await googleRes.json();
 
-    if (!data.places || data.places.length === 0) {
+      if (data.error) {
+        return res.status(400).json({ error: `Google API error: ${data.error.message || data.error.status}` });
+      }
+
+      if (data.places && data.places.length > 0) {
+        accumulatedPlaces.push(...data.places);
+      }
+
+      nextPageToken = data.nextPageToken || null;
+
+      // Google requires a short pause between page tokens
+      if (nextPageToken && accumulatedPlaces.length < targetCount) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      } else {
+        break;
+      }
+    } while (accumulatedPlaces.length < targetCount && nextPageToken);
+
+    if (accumulatedPlaces.length === 0) {
       return res.status(200).json({ message: 'No places found for this query', inserted: 0 });
     }
 
-    // 3. Format leads with user_id attached
-    const leadsToInsert = data.places.map((place: any) => ({
+    // 3. Format records
+    const leadsToInsert = accumulatedPlaces.map((place: any) => ({
       user_id: userId,
       place_id: place.id,
       name: place.displayName?.text || 'Unknown',
@@ -90,14 +115,14 @@ export default async function handler(req: any, res: any) {
       email: null
     }));
 
-    // 4. Save to Supabase resolving on (user_id, place_id)
+    // 4. Upsert to Supabase: ignores existing duplicates for this specific user
     const insertRes = await fetch(`${supabaseUrl}/rest/v1/business_leads?on_conflict=user_id,place_id`, {
       method: 'POST',
       headers: {
         'apikey': supabaseKey,
         'Authorization': `Bearer ${supabaseKey}`,
         'Content-Type': 'application/json',
-        'Prefer': 'resolution=ignore-duplicates,return=minimal'
+        'Prefer': 'resolution=ignore-duplicates,return=representation'
       },
       body: JSON.stringify(leadsToInsert)
     });
@@ -107,10 +132,17 @@ export default async function handler(req: any, res: any) {
       throw new Error(`Supabase DB error: ${errText}`);
     }
 
+    const insertedRows = await insertRes.json();
+    const newCount = Array.isArray(insertedRows) ? insertedRows.length : 0;
+    const dupCount = leadsToInsert.length - newCount;
+
     return res.status(200).json({
       success: true,
       found: leadsToInsert.length,
-      message: `Successfully collected ${leadsToInsert.length} businesses.`
+      inserted: newCount,
+      message: newCount > 0 
+        ? `Added ${newCount} new leads (${dupCount} duplicate places skipped).`
+        : `All ${leadsToInsert.length} places are already saved in your leads table.`
     });
   } catch (error: any) {
     console.error('Fetch places handler error:', error);
