@@ -49,7 +49,7 @@ export const DriveView: React.FC = () => {
     fetchFiles();
   }, [searchTerm, filterType]);
 
-  // Handle Upload using direct standard File object + upsert option
+  // Handle Upload via Signed Upload URL (Bypasses Supabase API Gateway 400 Proxy Rejections)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -61,23 +61,34 @@ export const DriveView: React.FC = () => {
       const cleanFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
       const filePath = `${Date.now()}_${cleanFileName}`;
 
-      // 2. Direct upload using the native File object
-      const { data: storageData, error: storageError } = await supabase.storage
+      // 2. Request a Signed Upload URL from Supabase
+      const { data: tokenData, error: tokenError } = await supabase.storage
         .from('company_drive')
-        .upload(filePath, file, {
-          contentType: file.type || 'application/octet-stream',
-          cacheControl: '3600',
-          upsert: true
-        });
+        .createSignedUploadUrl(filePath);
 
-      if (storageError) {
-        console.error('Storage Upload Error:', storageError);
-        alert(`Storage Error: ${storageError.message}`);
+      if (tokenError || !tokenData?.token) {
+        console.error('Signed URL Error:', tokenError);
+        alert(`Auth Error: ${tokenError?.message || 'Could not generate upload token'}`);
         setUploading(false);
         return;
       }
 
-      // 3. Save metadata to database table
+      // 3. Direct binary upload using the generated token (PUT request)
+      const { error: uploadError } = await supabase.storage
+        .from('company_drive')
+        .uploadToSignedUrl(filePath, tokenData.token, file, {
+          contentType: file.type || 'application/octet-stream',
+          cacheControl: '3600',
+        });
+
+      if (uploadError) {
+        console.error('Storage Upload Error:', uploadError);
+        alert(`Storage Error: ${uploadError.message}`);
+        setUploading(false);
+        return;
+      }
+
+      // 4. Save file metadata to database table
       const { error: dbError } = await supabase.from('files').insert({
         name: file.name,
         file_path: filePath,
