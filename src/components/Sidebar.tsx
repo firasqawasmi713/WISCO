@@ -1,14 +1,11 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   LayoutDashboard, 
-  Users, 
-  ReceiptText, 
-  Wallet, 
-  Calendar,
-  FileSpreadsheet, 
+  Briefcase, 
+  LayoutGrid, 
   ShieldCheck,
-  Folder,
-  ChevronDown
+  ChevronRight,
+  ChevronLeft
 } from 'lucide-react';
 import { NavTab, LanguageCode, UserProfile, CurrencyCode } from '../types';
 import { TRANSLATIONS } from '../constants/translations';
@@ -24,12 +21,6 @@ interface SidebarProps {
   currency: CurrencyCode;
 }
 
-interface NavItem {
-  id: NavTab;
-  label: string;
-  icon: React.ReactNode;
-}
-
 export const Sidebar: React.FC<SidebarProps> = ({
   currentTab,
   onSelectTab,
@@ -40,56 +31,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
   const isArabic = lang === 'ar';
+  const ChevronIcon = isArabic ? ChevronLeft : ChevronRight;
 
-  // Collapsible group state (expanded by default)
-  const [operationsOpen, setOperationsOpen] = useState(true);
-  const [workspaceOpen, setWorkspaceOpen] = useState(true);
+  const isOperationsActive = currentTab === 'operations' || currentTab === 'clients' || currentTab === 'invoices';
+  const isWorkspaceActive = currentTab === 'workspace' || currentTab === 'spendings' || currentTab === 'reports' || currentTab === 'events' || currentTab === 'drive';
 
-  // 1. Top-Level Dashboard Item
-  const dashboardItem: NavItem = {
-    id: 'dashboard',
-    label: t.dashboard,
-    icon: <LayoutDashboard className="w-5 h-5" />
-  };
-
-  // 2. Operations Group (Clients, Invoices)
-  const operationsItems: NavItem[] = [
-    { id: 'clients', label: t.clients, icon: <Users className="w-5 h-5" /> },
-    { id: 'invoices', label: t.invoices, icon: <ReceiptText className="w-5 h-5" /> }
-  ];
-
-  // 3. Workspace Group (Spendings, Reports, Events, Drive)
-  const workspaceItems: NavItem[] = [
+  const navButtons = [
     { 
-      id: 'spendings', 
-      label: isArabic ? t.spendings : `${t.spendings} (Expenses)`, 
-      icon: <Wallet className="w-5 h-5" /> 
+      id: 'dashboard' as NavTab, 
+      label: t.dashboard, 
+      icon: <LayoutDashboard className="w-5 h-5" />,
+      active: currentTab === 'dashboard',
+      badge: null,
+      description: isArabic ? 'لوحة البيانات' : 'Financial overview'
     },
-    { id: 'reports', label: t.reports, icon: <FileSpreadsheet className="w-5 h-5" /> },
-    { id: 'events', label: t.events, icon: <Calendar className="w-5 h-5" /> },
-    { id: 'drive', label: t.drive || 'Drive', icon: <Folder className="w-5 h-5" /> }
+    { 
+      id: 'operations' as NavTab, 
+      label: t.operations || 'Operations', 
+      icon: <Briefcase className="w-5 h-5" />,
+      active: isOperationsActive,
+      badge: '2',
+      description: isArabic ? 'العملاء والفواتير' : 'Clients & Invoices'
+    },
+    { 
+      id: 'workspace' as NavTab, 
+      label: t.workspace || 'Workspace', 
+      icon: <LayoutGrid className="w-5 h-5" />,
+      active: isWorkspaceActive,
+      badge: '4',
+      description: isArabic ? 'المصروفات، التقارير، السحاب' : 'Expenses, Reports, Drive'
+    }
   ];
-
-  const renderNavButton = (item: NavItem) => {
-    const active = currentTab === item.id;
-    return (
-      <button
-        key={item.id}
-        id={`sidebar-nav-${item.id}`}
-        onClick={() => onSelectTab(item.id)}
-        className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all cursor-pointer ${
-          active
-            ? 'bg-[#2563EB] text-white shadow-lg shadow-blue-900/30 border border-blue-400/30'
-            : 'text-slate-400 hover:text-white hover:bg-white/5'
-        }`}
-      >
-        <span className={active ? 'text-white' : 'text-slate-400 group-hover:text-white shrink-0'}>
-          {item.icon}
-        </span>
-        <span className="flex-1 text-left rtl:text-right font-semibold truncate">{item.label}</span>
-      </button>
-    );
-  };
 
   return (
     <aside 
@@ -108,7 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Mini Financial Health Capsule */}
+      {/* Financial Health Capsule */}
       <div className="mx-4 my-4 p-4 bg-white/5 border border-white/10 rounded-2xl shadow-sm">
         <div className="text-[11px] text-slate-300 mb-1">
           <span className="font-semibold uppercase tracking-wider text-[10px] text-slate-400">{t.totalRevenue}</span>
@@ -118,72 +90,57 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Grouped Navigation */}
-      <nav className="flex-1 px-4 space-y-4 overflow-y-auto py-2 custom-scrollbar">
-        {/* Top-Level Dashboard */}
-        <div className="space-y-1">
-          {renderNavButton(dashboardItem)}
+      {/* Primary Navigation Buttons */}
+      <nav className="flex-1 px-4 space-y-2.5 overflow-y-auto py-2">
+        <div className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400/80">
+          {isArabic ? 'القائمة الرئيسية' : 'Main Menu'}
         </div>
 
-        {/* Section 1: Operations */}
-        <div className="space-y-1.5 pt-1">
-          <button
-            type="button"
-            onClick={() => setOperationsOpen(prev => !prev)}
-            className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400/90 hover:text-white transition-colors cursor-pointer group"
-          >
-            <span className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-sky-400 inline-block" />
-              <span>{t.operations || 'Operations'}</span>
-            </span>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] bg-white/10 px-1.5 py-0.2 rounded-md font-mono text-slate-400 group-hover:text-slate-200">
-                {operationsItems.length}
+        {navButtons.map((item) => {
+          return (
+            <button
+              key={item.id}
+              id={`sidebar-nav-${item.id}`}
+              type="button"
+              onClick={() => onSelectTab(item.id)}
+              className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl font-medium text-sm transition-all cursor-pointer group ${
+                item.active
+                  ? 'bg-[#2563EB] text-white shadow-lg shadow-blue-900/30 border border-blue-400/30'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5 border border-transparent'
+              }`}
+            >
+              <span className={`p-1.5 rounded-xl transition-colors ${
+                item.active 
+                  ? 'bg-white/15 text-white' 
+                  : 'bg-white/5 text-slate-400 group-hover:text-white group-hover:bg-white/10'
+              }`}>
+                {item.icon}
               </span>
-              <ChevronDown 
-                className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
-                  operationsOpen ? 'transform rotate-0' : 'transform -rotate-90 rtl:rotate-90'
-                }`}
-              />
-            </div>
-          </button>
 
-          {operationsOpen && (
-            <div className="space-y-1 pl-1 rtl:pl-0 rtl:pr-1 transition-all">
-              {operationsItems.map(renderNavButton)}
-            </div>
-          )}
-        </div>
+              <div className="flex-1 text-left rtl:text-right min-w-0">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm truncate">{item.label}</span>
+                  {item.badge && (
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                      item.active ? 'bg-white/20 text-white' : 'bg-white/10 text-slate-400'
+                    }`}>
+                      {item.badge}
+                    </span>
+                  )}
+                </div>
+                <p className={`text-[11px] truncate mt-0.5 ${
+                  item.active ? 'text-sky-100' : 'text-slate-400'
+                }`}>
+                  {item.description}
+                </p>
+              </div>
 
-        {/* Section 2: Workspace */}
-        <div className="space-y-1.5 pt-1">
-          <button
-            type="button"
-            onClick={() => setWorkspaceOpen(prev => !prev)}
-            className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400/90 hover:text-white transition-colors cursor-pointer group"
-          >
-            <span className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 inline-block" />
-              <span>{t.workspace || 'Workspace'}</span>
-            </span>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] bg-white/10 px-1.5 py-0.2 rounded-md font-mono text-slate-400 group-hover:text-slate-200">
-                {workspaceItems.length}
-              </span>
-              <ChevronDown 
-                className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
-                  workspaceOpen ? 'transform rotate-0' : 'transform -rotate-90 rtl:rotate-90'
-                }`}
-              />
-            </div>
-          </button>
-
-          {workspaceOpen && (
-            <div className="space-y-1 pl-1 rtl:pl-0 rtl:pr-1 transition-all">
-              {workspaceItems.map(renderNavButton)}
-            </div>
-          )}
-        </div>
+              <ChevronIcon className={`w-4 h-4 shrink-0 transition-transform ${
+                item.active ? 'text-white translate-x-0.5 rtl:-translate-x-0.5' : 'text-slate-500 opacity-0 group-hover:opacity-100'
+              }`} />
+            </button>
+          );
+        })}
       </nav>
 
       {/* Footer Info & Privacy */}
@@ -206,3 +163,5 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </aside>
   );
 };
+
+export default Sidebar;
