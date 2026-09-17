@@ -1,5 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
-
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -25,40 +23,37 @@ export default async function handler(req: any, res: any) {
     process.env.VITE_SUPABASE_ANON_KEY;
 
   if (!supabaseKey) {
-    return res.status(500).json({ error: 'Missing Supabase service role or anon key in Vercel' });
+    return res.status(500).json({ error: 'Missing Supabase Key in Vercel' });
   }
 
-  // Serverless backend client with Realtime WebSockets disabled
-  const supabase = createClient(supabaseUrl, supabaseKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-    realtime: {
-      params: {
-        eventsPerSecond: 0,
-      },
-    },
-  });
-
   try {
-    // 1. Monthly quota safeguard (Max 3,000 places/month to ensure zero surprise costs)
+    // 1. Monthly quota safeguard (Max 3,000 places/month to ensure $0 cost)
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
 
-    const { count, error: countErr } = await supabase
-      .from('business_leads')
-      .select('*', { count: 'exact', head: true })
-      .gte('created_at', startOfMonth.toISOString());
+    const countRes = await fetch(
+      `${supabaseUrl}/rest/v1/business_leads?created_at=gte.${startOfMonth.toISOString()}&select=id`,
+      {
+        method: 'HEAD',
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Range-Unit': 'items',
+          'Prefer': 'count=exact'
+        }
+      }
+    );
 
-    if (!countErr && typeof count === 'number' && count >= 3000) {
+    const contentRange = countRes.headers.get('content-range');
+    const totalCount = contentRange ? parseInt(contentRange.split('/')[1], 10) : 0;
+
+    if (!isNaN(totalCount) && totalCount >= 3000) {
       return res.status(429).json({ error: 'Free monthly quota safety limit (3,000) reached.' });
     }
 
     // 2. Query Google Places API (New) Text Search
-    // Strict FieldMask ensures you stay on the lowest pricing SKU
-    const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
+    const googleRes = await fetch('https://places.googleapis.com/v1/places:searchText', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -71,9 +66,8 @@ export default async function handler(req: any, res: any) {
       })
     });
 
-    const data = await response.json();
+    const data = await googleRes.json();
 
-    // Catch Google-specific errors (e.g. invalid key or unbilled project)
     if (data.error) {
       return res.status(400).json({ error: `Google API error: ${data.error.message || data.error.status}` });
     }
@@ -92,12 +86,22 @@ export default async function handler(req: any, res: any) {
       email: null
     }));
 
-    // 4. Save to Supabase (skip duplicates)
-    const { error: insertError } = await supabase
-      .from('business_leads')
-      .upsert(leadsToInsert, { onConflict: 'place_id', ignoreDuplicates: true });
+    // 4. Save to Supabase via REST upsert (resolution=ignore-duplicates)
+    const insertRes = await fetch(`${supabaseUrl}/rest/v1/business_leads`, {
+      method: 'POST',
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=ignore-duplicates,return=minimal'
+      },
+      body: JSON.stringify(leadsToInsert)
+    });
 
-    if (insertError) throw insertError;
+    if (!insertRes.ok) {
+      const errText = await insertRes.text();
+      throw new Error(`Supabase DB error: ${errText}`);
+    }
 
     return res.status(200).json({
       success: true,
