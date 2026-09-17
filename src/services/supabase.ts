@@ -10,14 +10,31 @@ import {
 } from '../types';
 
 // Default Supabase project credentials
-const DEFAULT_SUPABASE_URL = 'https://cplbrwzfgfvqfuolfowt.supabase.co';
+const DEFAULT_SUPABASE_URL = 'https://cplbrwzgfqfuolfowt.supabase.co';
 const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwbGJyd3pmZ2Z2cWZ1b2xmb3d0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NTc0MjksImV4cCI6MjEwMzQzMzQyOX0.S7fMNaYKYnt7QnMI_3DGuUSFyQdbAzsKZwFfTt5Y78g';
 
-export const SUPABASE_URL: string = 
-  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_URL) || DEFAULT_SUPABASE_URL;
+// Helper to strip markdown brackets, markdown link wrappers, quotes, and whitespace
+function cleanSupabaseUrl(rawUrl?: string): string {
+  if (!rawUrl) return DEFAULT_SUPABASE_URL;
+  let url = rawUrl.trim();
+  
+  // Check if string contains markdown link syntax [url](url)
+  const markdownMatch = url.match(/\((https?:\/\/[^\s\)]+)\)/);
+  if (markdownMatch && markdownMatch[1]) {
+    return markdownMatch[1].trim();
+  }
+  
+  // Remove wrapping brackets, parentheses, or quotes
+  url = url.replace(/^[\[\("']+|[\]\)"']+$/g, '').trim();
+  
+  return url.startsWith('http') ? url : DEFAULT_SUPABASE_URL;
+}
 
-export const SUPABASE_ANON_KEY: string = 
-  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_ANON_KEY) || DEFAULT_SUPABASE_ANON_KEY;
+const rawEnvUrl = typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_SUPABASE_URL : undefined;
+const rawEnvKey = typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_SUPABASE_ANON_KEY : undefined;
+
+export const SUPABASE_URL: string = cleanSupabaseUrl(rawEnvUrl);
+export const SUPABASE_ANON_KEY: string = (rawEnvKey ? rawEnvKey.trim().replace(/^["']+|["']+$/g, '') : '') || DEFAULT_SUPABASE_ANON_KEY;
 
 // Environment variable validation & health check
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
@@ -370,7 +387,6 @@ export const SupabaseService = {
           privacyPolicyAgreedAt: new Date().toISOString()
         };
 
-        // Create profile in database
         await this.updateProfileAndSettings(authUser.id, userProfile, {
           companyName: payload.companyName,
           companyAddress: payload.companyAddress,
@@ -607,7 +623,6 @@ export const SupabaseService = {
   // 2. Profiles / Settings Database Operations
   async fetchProfileAndSettings(userId: string): Promise<{ profile: UserProfile | null; settings: Partial<AppSettings> | null }> {
     try {
-      // 1. Try user_settings table matching on user_id
       const { data: settingsData } = await supabase
         .from('user_settings')
         .select('*')
@@ -619,7 +634,6 @@ export const SupabaseService = {
         return { profile: parsed.profile, settings: parsed.settings };
       }
 
-      // 2. Fallback to profiles table with direct ID match (avoiding malformed .or syntax)
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
@@ -662,12 +676,10 @@ export const SupabaseService = {
         if (settings.defaultPaymentTerms !== undefined) payload.default_payment_terms = settings.defaultPaymentTerms;
       }
 
-      // Upsert to user_settings
       const res1 = await supabase
         .from('user_settings')
         .upsert(payload);
 
-      // Upsert to profiles as well with id
       await supabase
         .from('profiles')
         .upsert({ ...payload, id: userId });
@@ -722,7 +734,6 @@ export const SupabaseService = {
 
   async deleteClient(clientId: string, userId: string): Promise<boolean> {
     try {
-      // First delete associated invoices to maintain referential cleanliness
       await supabase
         .from('invoices')
         .delete()
@@ -851,7 +862,6 @@ export const SupabaseService = {
       const row = mapSpendingToRow(spending, userId);
       const { data, error } = await supabase
         .from('spendings')
-        .upsert(row)
         .select()
         .single();
 
