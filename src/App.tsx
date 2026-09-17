@@ -9,7 +9,7 @@ import {
   ClientProject, 
   Invoice, 
   Spending, 
-  CalendarEvent,
+  CalendarEvent, 
   AppSettings, 
   UserProfile, 
   InvoiceStatus 
@@ -40,6 +40,7 @@ import { DriveView as Drive } from './components/DriveView';
 import { AuthModal } from './components/AuthModal';
 import { PrivacyPolicyModal } from './components/PrivacyPolicyModal';
 import { DeleteConfirmModal } from './components/DeleteConfirmModal';
+import LeadCollector from './pages/LeadCollector';
 
 export default function App() {
   // 1. Initial State
@@ -143,7 +144,6 @@ export default function App() {
       setEvents(dbEvents || []);
     } catch (err) {
       console.warn('Supabase fetch error, fallback to default/cached state:', err);
-      // Fallback gracefully so tour and UI continue to function without blocking
       setClients(prev => prev.length > 0 ? prev : StorageService.getCachedClients(targetUid));
       setInvoices(prev => prev.length > 0 ? prev : StorageService.getCachedInvoices(targetUid));
       setSpendings(prev => prev.length > 0 ? prev : StorageService.getCachedSpendings(targetUid));
@@ -201,7 +201,6 @@ export default function App() {
 
           await fetchSupabaseData(uid);
         } else {
-          // No active auth session
           if (isMounted) {
             setUser(null);
             setClients([]);
@@ -223,7 +222,6 @@ export default function App() {
 
     initializeSessionAndData();
 
-    // Listen to Supabase auth events (SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         const uid = session.user.id;
@@ -282,7 +280,6 @@ export default function App() {
         await StorageService.addClient(clientData, targetUid);
       }
 
-      // Re-fetch clean dataset from Supabase
       if (targetUid) {
         const [updatedClients, updatedInvoices] = await Promise.all([
           StorageService.getClients(targetUid),
@@ -685,7 +682,7 @@ export default function App() {
             </div>
           )}
 
-          {(currentTab === 'spendings' || currentTab === 'reports' || currentTab === 'events' || currentTab === 'drive') && (
+          {(currentTab === 'spendings' || currentTab === 'reports' || currentTab === 'events' || currentTab === 'drive' || currentTab === 'leads') && (
             <div className="mb-5 flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
               <button
                 type="button"
@@ -702,7 +699,9 @@ export default function App() {
                   ? (TRANSLATIONS[settings.language]?.reports || 'Reports')
                   : currentTab === 'events' 
                   ? (TRANSLATIONS[settings.language]?.events || 'Events')
-                  : (TRANSLATIONS[settings.language]?.drive || 'Drive')}
+                  : currentTab === 'drive'
+                  ? (TRANSLATIONS[settings.language]?.drive || 'Drive')
+                  : (settings.language === 'ar' ? 'البحث عن عملاء' : 'Lead Discovery')}
               </span>
             </div>
           )}
@@ -798,6 +797,11 @@ export default function App() {
               lang={settings.language}
               onShowToast={showToast}
             />
+          )}
+
+          {/* Lead Discovery / Collector View */}
+          {currentTab === 'leads' && (
+            <LeadCollector />
           )}
 
           {currentTab === 'account' && (
