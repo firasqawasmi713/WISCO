@@ -26,24 +26,32 @@ export const DriveView: React.FC<DriveViewProps> = ({ userId, lang = 'en' }) => 
   const isArabic = lang === 'ar';
   const BUCKET_NAME = 'company_drive';
 
-  const loadFiles = async () => {
+const loadFiles = async () => {
     try {
       setLoading(true);
       setErrorMessage('');
 
+      // Call list() without empty strings or complex sortBy parameters that trigger 400
       const { data, error } = await supabase.storage
         .from(BUCKET_NAME)
-        .list('', {
-          limit: 100,
-          offset: 0,
-          sortBy: { column: 'created_at', order: 'desc' },
-        });
+        .list();
 
       if (error) throw error;
-      setFiles((data as StorageFile[]) || []);
+
+      // Filter out system placeholders (.emptyFolderPlaceholder) if any exist
+      const validFiles = (data || []).filter(
+        (f) => f.name && !f.name.startsWith('.')
+      );
+
+      setFiles(validFiles as StorageFile[]);
     } catch (err: any) {
       console.error('Fetch error:', err);
-      setErrorMessage(err.message || 'Failed to retrieve files');
+      // Suppress the pink banner if it's just an empty folder response
+      if (err.statusCode === 404 || err.message?.includes('not found')) {
+        setFiles([]);
+      } else {
+        setErrorMessage(err.message || 'Failed to retrieve files');
+      }
     } finally {
       setLoading(false);
     }
