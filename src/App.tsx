@@ -36,7 +36,7 @@ import { EventsView } from './components/EventsView';
 import { EventModal } from './components/EventModal';
 import { ReportsView } from './components/ReportsView';
 import { AccountView } from './components/AccountView';
-import { Drive } from './components/Drive';
+import { DriveView as Drive } from './components/DriveView';
 import { AuthModal } from './components/AuthModal';
 import { PrivacyPolicyModal } from './components/PrivacyPolicyModal';
 import { DeleteConfirmModal } from './components/DeleteConfirmModal';
@@ -606,8 +606,8 @@ export default function App() {
           className={`fixed top-5 right-5 z-50 px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-md border flex items-center gap-3 transition-all animate-bounce duration-300 text-sm font-medium ${
             toast.type === 'success' 
               ? 'bg-emerald-900/90 border-emerald-500/40 text-emerald-100' 
-              : toast.type === 'error'
-              ? 'bg-rose-900/90 border-rose-500/40 text-rose-100'
+              : toast.type === 'error' 
+              ? 'bg-rose-900/90 border-rose-500/40 text-rose-100' 
               : 'bg-slate-900/90 border-slate-700 text-slate-100'
           }`}
         >
@@ -698,9 +698,9 @@ export default function App() {
               <span className="text-slate-800 dark:text-slate-200">
                 {currentTab === 'spendings' 
                   ? (TRANSLATIONS[settings.language]?.spendings || 'Spendings')
-                  : currentTab === 'reports'
+                  : currentTab === 'reports' 
                   ? (TRANSLATIONS[settings.language]?.reports || 'Reports')
-                  : currentTab === 'events'
+                  : currentTab === 'events' 
                   ? (TRANSLATIONS[settings.language]?.events || 'Events')
                   : (TRANSLATIONS[settings.language]?.drive || 'Drive')}
               </span>
