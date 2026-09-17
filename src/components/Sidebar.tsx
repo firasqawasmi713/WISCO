@@ -82,7 +82,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Financial Health Capsule */}
+      {/* Mini Financial Health Capsule */}
       <div className="mx-4 my-4 p-4 bg-white/5 border border-white/10 rounded-2xl shadow-sm">
         <div className="text-[11px] text-slate-300 mb-1">
           <span className="font-semibold uppercase tracking-wider text-[10px] text-slate-400">{t.totalRevenue}</span>
@@ -92,7 +92,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Primary Navigation Buttons */}
+      {/* Primary Standard Navigation Buttons */}
       <nav className="flex-1 px-4 space-y-2.5 overflow-y-auto py-2">
         <div className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400/80">
           {isArabic ? 'القائمة الرئيسية' : 'Main Menu'}
