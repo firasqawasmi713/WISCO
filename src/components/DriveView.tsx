@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { Upload, Download, Trash2, File, Loader2 } from 'lucide-react';
 
@@ -17,24 +17,38 @@ interface StorageFile {
   };
 }
 
-export const DriveView: React.FC<DriveViewProps> = ({ userId, lang = 'en' }) => {
+export const DriveView: React.FC<DriveViewProps> = ({ userId: propUserId, lang = 'en' }) => {
   const [files, setFiles] = useState<StorageFile[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [uploading, setUploading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [activeUid, setActiveUid] = useState<string | null>(propUserId || null);
 
   const isArabic = lang === 'ar';
   const BUCKET_NAME = 'company_drive';
 
-  const loadFiles = async () => {
+  // Ensure active user ID is loaded
+  useEffect(() => {
+    if (propUserId) {
+      setActiveUid(propUserId);
+    } else {
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (user) setActiveUid(user.id);
+      });
+    }
+  }, [propUserId]);
+
+  const loadFiles = useCallback(async () => {
+    if (!activeUid) return;
+
     try {
       setLoading(true);
       setErrorMessage('');
 
-      // Passing explicit empty path and search options prevents 400 Bad Request
+      // Scope file listing strictly to the active user's folder
       const { data, error } = await supabase.storage
         .from(BUCKET_NAME)
-        .list('', {
+        .list(activeUid, {
           limit: 100,
           offset: 0,
           sortBy: { column: 'name', order: 'asc' },
@@ -43,7 +57,6 @@ export const DriveView: React.FC<DriveViewProps> = ({ userId, lang = 'en' }) => 
 
       if (error) throw error;
 
-      // Filter out root metadata artifacts and hidden placeholders
       const validFiles = (data || []).filter(
         (f) => f && f.name && !f.name.startsWith('.') && f.name !== '.emptyFolderPlaceholder'
       );
@@ -59,26 +72,29 @@ export const DriveView: React.FC<DriveViewProps> = ({ userId, lang = 'en' }) => 
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeUid]);
 
   useEffect(() => {
-    loadFiles();
-  }, []);
+    if (activeUid) {
+      loadFiles();
+    }
+  }, [activeUid, loadFiles]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !activeUid) return;
 
     try {
       setUploading(true);
       setErrorMessage('');
 
-      // Clean file name to avoid invalid URI characters
       const cleanFileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      // Save inside user folder: userId/fileName
+      const filePath = `${activeUid}/${cleanFileName}`;
 
       const { error } = await supabase.storage
         .from(BUCKET_NAME)
-        .upload(cleanFileName, file, {
+        .upload(filePath, file, {
           cacheControl: '3600',
           upsert: true
         });
@@ -96,10 +112,13 @@ export const DriveView: React.FC<DriveViewProps> = ({ userId, lang = 'en' }) => 
   };
 
   const handleDownload = async (fileName: string) => {
+    if (!activeUid) return;
+
     try {
+      const filePath = `${activeUid}/${fileName}`;
       const { data, error } = await supabase.storage
         .from(BUCKET_NAME)
-        .download(fileName);
+        .download(filePath);
 
       if (error) throw error;
 
@@ -117,15 +136,18 @@ export const DriveView: React.FC<DriveViewProps> = ({ userId, lang = 'en' }) => 
   };
 
   const handleDelete = async (fileName: string) => {
+    if (!activeUid) return;
+
     const confirmDelete = window.confirm(
       isArabic ? 'هل أنت متأكد من حذف هذا الملف؟' : 'Are you sure you want to delete this file?'
     );
     if (!confirmDelete) return;
 
     try {
+      const filePath = `${activeUid}/${fileName}`;
       const { error } = await supabase.storage
         .from(BUCKET_NAME)
-        .remove([fileName]);
+        .remove([filePath]);
 
       if (error) throw error;
       setFiles((prev) => prev.filter((item) => item.name !== fileName));
@@ -147,10 +169,10 @@ export const DriveView: React.FC<DriveViewProps> = ({ userId, lang = 'en' }) => 
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-            {isArabic ? 'الملفات' : 'Drive'}
+            {isArabic ? 'الملفات الشخصية' : 'Drive'}
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            {isArabic ? 'إدارة وتحميل الملفات والمستندات' : 'Upload, manage, and download your documents.'}
+            {isArabic ? 'مساحتك السحابية الخاصة لحفظ الملفات' : 'Your private cloud storage.'}
           </p>
         </div>
 
@@ -182,7 +204,7 @@ export const DriveView: React.FC<DriveViewProps> = ({ userId, lang = 'en' }) => 
         <div className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center text-slate-400 dark:text-slate-500">
           <File className="w-12 h-12 mx-auto mb-3 opacity-40" />
           <p className="font-medium text-sm">
-            {isArabic ? 'لا توجد ملفات حالياً. اضغط على رفع ملف للبدء.' : 'No files found. Click "Upload Files" to get started.'}
+            {isArabic ? 'لا توجد ملفات مرفوعة في حسابك.' : 'No personal files uploaded yet.'}
           </p>
         </div>
       ) : (
