@@ -49,7 +49,7 @@ export const DriveView: React.FC = () => {
     fetchFiles();
   }, [searchTerm, filterType]);
 
-  // Handle Upload using ArrayBuffer to bypass multipart upload 400 errors
+  // Handle Upload using direct standard File object + upsert option
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -61,13 +61,10 @@ export const DriveView: React.FC = () => {
       const cleanFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
       const filePath = `${Date.now()}_${cleanFileName}`;
 
-      // 2. Convert File to ArrayBuffer to prevent proxy payload rejection
-      const arrayBuffer = await file.arrayBuffer();
-
-      // 3. Upload raw buffer directly to root of 'company_drive' bucket
+      // 2. Direct upload using the native File object
       const { data: storageData, error: storageError } = await supabase.storage
         .from('company_drive')
-        .upload(filePath, arrayBuffer, {
+        .upload(filePath, file, {
           contentType: file.type || 'application/octet-stream',
           cacheControl: '3600',
           upsert: true
@@ -80,7 +77,7 @@ export const DriveView: React.FC = () => {
         return;
       }
 
-      // 4. Save metadata to database table
+      // 3. Save metadata to database table
       const { error: dbError } = await supabase.from('files').insert({
         name: file.name,
         file_path: filePath,
