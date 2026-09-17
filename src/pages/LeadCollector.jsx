@@ -1,12 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../services/supabase';
 import * as XLSX from 'xlsx';
-
-// Initialize your Supabase client
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
 
 export default function LeadCollector() {
   const [leads, setLeads] = useState([]);
@@ -23,16 +17,21 @@ export default function LeadCollector() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  // 1. Fetch saved leads from Supabase
+  // 1. Fetch saved leads from Supabase using the existing shared client
   const loadLeads = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('business_leads')
-      .select('*')
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('business_leads')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (!error && data) setLeads(data);
-    setLoading(false);
+      if (!error && data) setLeads(data);
+    } catch (err) {
+      console.error('Error loading leads:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -69,7 +68,7 @@ export default function LeadCollector() {
   // 3. Filter Table Data
   const filteredLeads = leads.filter((item) => {
     const matchesSearch =
-      item.name.toLowerCase().includes(tableSearch.toLowerCase()) ||
+      item.name?.toLowerCase().includes(tableSearch.toLowerCase()) ||
       (item.phone && item.phone.includes(tableSearch)) ||
       (item.email && item.email.toLowerCase().includes(tableSearch.toLowerCase()));
 
@@ -110,7 +109,7 @@ export default function LeadCollector() {
 
   return (
     <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto', fontFamily: 'sans-serif' }}>
-      <h2>Lead Collection & Discovery</h2>
+      <h2 style={{ marginBottom: '16px', fontSize: '22px', fontWeight: 'bold' }}>Lead Collection & Discovery</h2>
 
       {/* Auto-Discovery Bar */}
       <form onSubmit={handleCollectPlaces} style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
@@ -120,16 +119,28 @@ export default function LeadCollector() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           required
-          style={{ flex: 2, padding: '10px' }}
+          style={{ flex: 2, padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
         />
         <input
           type="text"
           placeholder="Custom Category Tag (e.g. Hospitality)"
           value={categoryTag}
           onChange={(e) => setCategoryTag(e.target.value)}
-          style={{ flex: 1, padding: '10px' }}
+          style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
         />
-        <button type="submit" disabled={fetchingApi} style={{ padding: '10px 20px', cursor: 'pointer' }}>
+        <button 
+          type="submit" 
+          disabled={fetchingApi} 
+          style={{ 
+            padding: '10px 20px', 
+            cursor: fetchingApi ? 'not-allowed' : 'pointer',
+            backgroundColor: '#2563EB',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '8px',
+            fontWeight: '600'
+          }}
+        >
           {fetchingApi ? 'Collecting...' : 'Collect Places'}
         </button>
       </form>
@@ -141,24 +152,51 @@ export default function LeadCollector() {
           placeholder="Search filtered table..."
           value={tableSearch}
           onChange={(e) => setTableSearch(e.target.value)}
-          style={{ padding: '8px' }}
+          style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
         />
 
-        <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} style={{ padding: '8px' }}>
+        <select 
+          value={categoryFilter} 
+          onChange={(e) => setCategoryFilter(e.target.value)} 
+          style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+        >
           {uniqueCategories.map((cat) => (
             <option key={cat} value={cat}>{cat}</option>
           ))}
         </select>
 
-        <label style={{ fontSize: '12px' }}>From:
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={{ marginLeft: '4px', padding: '6px' }} />
+        <label style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}>From:
+          <input 
+            type="date" 
+            value={startDate} 
+            onChange={(e) => setStartDate(e.target.value)} 
+            style={{ padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
+          />
         </label>
 
-        <label style={{ fontSize: '12px' }}>To:
-          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} style={{ marginLeft: '4px', padding: '6px' }} />
+        <label style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}>To:
+          <input 
+            type="date" 
+            value={endDate} 
+            onChange={(e) => setEndDate(e.target.value)} 
+            style={{ padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
+          />
         </label>
 
-        <button onClick={exportToExcel} style={{ marginLeft: 'auto', padding: '8px 16px', background: '#107c41', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+        <button 
+          type="button"
+          onClick={exportToExcel} 
+          style={{ 
+            marginLeft: 'auto', 
+            padding: '8px 16px', 
+            background: '#107c41', 
+            color: '#fff', 
+            border: 'none', 
+            borderRadius: '6px', 
+            cursor: 'pointer',
+            fontWeight: '600'
+          }}
+        >
           Export to Excel (.xlsx)
         </button>
       </div>
@@ -167,36 +205,42 @@ export default function LeadCollector() {
       {loading ? (
         <p>Loading database records...</p>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', marginTop: '8px' }}>
-          <thead>
-            <tr style={{ background: '#f4f4f4', borderBottom: '2px solid #ddd' }}>
-              <th style={{ padding: '10px' }}>Name</th>
-              <th style={{ padding: '10px' }}>Category</th>
-              <th style={{ padding: '10px' }}>Phone</th>
-              <th style={{ padding: '10px' }}>Email</th>
-              <th style={{ padding: '10px' }}>Website</th>
-              <th style={{ padding: '10px' }}>Collected On</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredLeads.length === 0 ? (
-              <tr><td colSpan="6" style={{ padding: '20px', textAlign: 'center' }}>No leads found.</td></tr>
-            ) : (
-              filteredLeads.map((item) => (
-                <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: '10px', fontWeight: 'bold' }}>{item.name}</td>
-                  <td style={{ padding: '10px' }}>{item.category}</td>
-                  <td style={{ padding: '10px' }}>{item.phone || '-'}</td>
-                  <td style={{ padding: '10px' }}>{item.email || '-'}</td>
-                  <td style={{ padding: '10px' }}>
-                    {item.website ? <a href={item.website} target="_blank" rel="noreferrer">Link</a> : '-'}
-                  </td>
-                  <td style={{ padding: '10px' }}>{new Date(item.created_at).toLocaleDateString()}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+        <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <thead>
+              <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                <th style={{ padding: '12px' }}>Name</th>
+                <th style={{ padding: '12px' }}>Category</th>
+                <th style={{ padding: '12px' }}>Phone</th>
+                <th style={{ padding: '12px' }}>Email</th>
+                <th style={{ padding: '12px' }}>Website</th>
+                <th style={{ padding: '12px' }}>Collected On</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredLeads.length === 0 ? (
+                <tr><td colSpan={6} style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>No leads found.</td></tr>
+              ) : (
+                filteredLeads.map((item) => (
+                  <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '12px', fontWeight: '600' }}>{item.name}</td>
+                    <td style={{ padding: '12px' }}>{item.category}</td>
+                    <td style={{ padding: '12px' }}>{item.phone || '-'}</td>
+                    <td style={{ padding: '12px' }}>{item.email || '-'}</td>
+                    <td style={{ padding: '12px' }}>
+                      {item.website ? (
+                        <a href={item.website} target="_blank" rel="noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}>
+                          Visit
+                        </a>
+                      ) : '-'}
+                    </td>
+                    <td style={{ padding: '12px' }}>{new Date(item.created_at).toLocaleDateString()}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
