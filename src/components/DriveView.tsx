@@ -26,28 +26,32 @@ export const DriveView: React.FC<DriveViewProps> = ({ userId, lang = 'en' }) => 
   const isArabic = lang === 'ar';
   const BUCKET_NAME = 'company_drive';
 
-const loadFiles = async () => {
+  const loadFiles = async () => {
     try {
       setLoading(true);
       setErrorMessage('');
 
-      // Call list() without empty strings or complex sortBy parameters that trigger 400
+      // Passing explicit empty path and search options prevents 400 Bad Request
       const { data, error } = await supabase.storage
         .from(BUCKET_NAME)
-        .list();
+        .list('', {
+          limit: 100,
+          offset: 0,
+          sortBy: { column: 'name', order: 'asc' },
+          search: ''
+        });
 
       if (error) throw error;
 
-      // Filter out system placeholders (.emptyFolderPlaceholder) if any exist
+      // Filter out root metadata artifacts and hidden placeholders
       const validFiles = (data || []).filter(
-        (f) => f.name && !f.name.startsWith('.')
+        (f) => f && f.name && !f.name.startsWith('.') && f.name !== '.emptyFolderPlaceholder'
       );
 
       setFiles(validFiles as StorageFile[]);
     } catch (err: any) {
       console.error('Fetch error:', err);
-      // Suppress the pink banner if it's just an empty folder response
-      if (err.statusCode === 404 || err.message?.includes('not found')) {
+      if (err?.message?.includes('not found') || err?.statusCode === 404 || err?.status === 404) {
         setFiles([]);
       } else {
         setErrorMessage(err.message || 'Failed to retrieve files');
@@ -69,7 +73,7 @@ const loadFiles = async () => {
       setUploading(true);
       setErrorMessage('');
 
-      // Clean file name to avoid invalid URL characters
+      // Clean file name to avoid invalid URI characters
       const cleanFileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
 
       const { error } = await supabase.storage
