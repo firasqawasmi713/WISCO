@@ -763,7 +763,7 @@ export default function App() {
         </main>
       </div>
 
-      {/* Floating Privacy Notice Footer for compliance */}
+      {/* Floating Privacy Notice Footer */}
       <footer className="border-t border-slate-200/80 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md px-6 py-3 text-center text-xs text-slate-500 dark:text-slate-400 flex flex-col sm:flex-row items-center justify-between gap-2 print:hidden">
         <div className="flex items-center gap-2">
           <span className="font-black text-[#0F284E] dark:text-sky-400">WISCO</span>
