@@ -1,42 +1,52 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
-);
-
-export default async function handler(req, res) {
+export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { query, category } = req.body;
+  const { query, category } = req.body || {};
   if (!query) {
     return res.status(400).json({ error: 'Search query is required' });
   }
 
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: 'Missing GOOGLE_PLACES_API_KEY environment variable' });
+    return res.status(500).json({ error: 'Missing GOOGLE_PLACES_API_KEY environment variable in Vercel' });
   }
 
+  const supabaseUrl = 
+    process.env.VITE_SUPABASE_URL || 
+    process.env.SUPABASE_URL || 
+    'https://cplbrwzgfqfuolfowt.supabase.co';
+
+  const supabaseKey = 
+    process.env.SUPABASE_SERVICE_ROLE_KEY || 
+    process.env.VITE_SUPABASE_ANON_KEY;
+
+  if (!supabaseKey) {
+    return res.status(500).json({ error: 'Missing Supabase service role or anon key in Vercel' });
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
   try {
-    // 1. Check monthly collection limit to prevent charges (Cap at 3,000 places/month)
+    // 1. Monthly quota safeguard (Max 3,000 places/month to ensure zero surprise costs)
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
 
-    const { count } = await supabase
+    const { count, error: countErr } = await supabase
       .from('business_leads')
       .select('*', { count: 'exact', head: true })
       .gte('created_at', startOfMonth.toISOString());
 
-    if (count >= 3000) {
+    if (!countErr && typeof count === 'number' && count >= 3000) {
       return res.status(429).json({ error: 'Free monthly quota safety limit (3,000) reached.' });
     }
 
-    // 2. Call Google Places API (New) Text Search
-    // Strict FieldMask: Request ONLY minimal fields to keep costs in the lowest tier
+    // 2. Query Google Places API (New) Text Search
+    // Strict FieldMask ensures you stay on the lowest pricing SKU
     const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
       method: 'POST',
       headers: {
@@ -51,21 +61,27 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
+
+    // Catch Google-specific errors (e.g. invalid key or unbilled project)
+    if (data.error) {
+      return res.status(400).json({ error: `Google API error: ${data.error.message || data.error.status}` });
+    }
+
     if (!data.places || data.places.length === 0) {
-      return res.status(200).json({ message: 'No places found', inserted: 0 });
+      return res.status(200).json({ message: 'No places found for this query', inserted: 0 });
     }
 
     // 3. Format and clean records
-    const leadsToInsert = data.places.map((place) => ({
+    const leadsToInsert = data.places.map((place: any) => ({
       place_id: place.id,
       name: place.displayName?.text || 'Unknown',
       category: category || place.primaryType || 'General',
       phone: place.nationalPhoneNumber || null,
       website: place.websiteUri || null,
-      email: null // Google does not provide emails directly
+      email: null
     }));
 
-    // 4. Save to Supabase (ignore duplicates if place_id already exists)
+    // 4. Save to Supabase (skip duplicates)
     const { error: insertError } = await supabase
       .from('business_leads')
       .upsert(leadsToInsert, { onConflict: 'place_id', ignoreDuplicates: true });
@@ -77,7 +93,8 @@ export default async function handler(req, res) {
       found: leadsToInsert.length,
       message: `Successfully collected ${leadsToInsert.length} businesses.`
     });
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
+  } catch (error: any) {
+    console.error('Fetch places handler error:', error);
+    return res.status(500).json({ error: error.message || 'Internal server error' });
   }
 }
