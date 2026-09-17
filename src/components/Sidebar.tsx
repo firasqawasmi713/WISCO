@@ -7,7 +7,8 @@ import {
   Calendar, 
   FileSpreadsheet, 
   ShieldCheck,
-  UserPlus
+  UserPlus,
+  HardDrive
 } from 'lucide-react';
 import { NavTab, LanguageCode, UserProfile, CurrencyCode } from '../types';
 import { TRANSLATIONS } from '../constants/translations';
@@ -53,7 +54,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'invoices', label: t.invoices, icon: <ReceiptText className="w-5 h-5" /> },
     { id: 'spendings', label: t.spendings, icon: <Wallet className="w-5 h-5" /> },
     { id: 'events', label: t.events, icon: <Calendar className="w-5 h-5" /> },
-    { id: 'reports', label: t.reports, icon: <FileSpreadsheet className="w-5 h-5" /> }
+    { id: 'reports', label: t.reports, icon: <FileSpreadsheet className="w-5 h-5" /> },
+    { 
+      id: 'drive' as NavTab, 
+      label: (t as Record<string, string>).drive || (isArabic ? 'الملفات' : 'Drive'), 
+      icon: <HardDrive className="w-5 h-5" /> 
+    }
   ];
 
   // If role is owner or admin, show all tabs.
