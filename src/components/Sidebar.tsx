@@ -19,6 +19,8 @@ interface SidebarProps {
   onOpenPrivacyPolicy: () => void;
   totalRevenue: number;
   currency: CurrencyCode;
+  role?: string;
+  permissions?: Record<string, { view: boolean; edit: boolean }>;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
