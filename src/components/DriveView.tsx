@@ -49,7 +49,7 @@ export const DriveView: React.FC = () => {
     fetchFiles();
   }, [searchTerm, filterType]);
 
-  // Handle Standard File Upload
+  // Handle Upload (Nginx-Safe Version)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -57,17 +57,17 @@ export const DriveView: React.FC = () => {
     setUploading(true);
 
     try {
-      // 1. Sanitize filename (remove spaces & special characters)
-      const cleanFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-      const filePath = `${Date.now()}_${cleanFileName}`;
+      // 1. Create a 100% proxy-safe file path (e.g., "17123456789.pdf")
+      // Strips the original name from the URL entirely to prevent Nginx 400 errors.
+      const fileExt = file.name.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'bin';
+      const safeFilePath = `${Date.now()}.${fileExt}`;
 
-      // 2. Direct upload to 'company_drive' bucket using standard upload
+      // 2. Minimal Upload Call (Let the browser natively handle Content-Type and boundaries)
       const { error: uploadError } = await supabase.storage
         .from('company_drive')
-        .upload(filePath, file, {
-          contentType: file.type || 'application/octet-stream',
+        .upload(safeFilePath, file, {
           cacheControl: '3600',
-          upsert: true,
+          upsert: true
         });
 
       if (uploadError) {
@@ -77,10 +77,10 @@ export const DriveView: React.FC = () => {
         return;
       }
 
-      // 3. Save file metadata to database table
+      // 3. Save to database (Store the safe path, but display the REAL name to the user)
       const { error: dbError } = await supabase.from('files').insert({
-        name: file.name,
-        file_path: filePath,
+        name: file.name, 
+        file_path: safeFilePath, 
         file_size: file.size,
         mime_type: file.type || 'application/octet-stream',
       });
@@ -156,7 +156,7 @@ export const DriveView: React.FC = () => {
   const shareWhatsApp = async (filePath: string) => {
     const { data } = await supabase.storage
       .from('company_drive')
-      .createSignedUrl(filePath, 86400); // 24hr valid link
+      .createSignedUrl(filePath, 86400);
 
     if (data?.signedUrl) {
       const text = encodeURIComponent(`Here is the shared file: ${data.signedUrl}`);
