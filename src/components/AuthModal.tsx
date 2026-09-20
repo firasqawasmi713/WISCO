@@ -2,16 +2,16 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Mail, 
   Lock, 
-  Eye,
-  EyeOff,
+  Eye, 
+  EyeOff, 
   AlertCircle, 
-  CheckCircle2,
-  KeyRound,
-  ArrowLeft,
-  ArrowRight,
-  RefreshCw,
-  LogIn,
-  ShieldCheck
+  CheckCircle2, 
+  KeyRound, 
+  ArrowLeft, 
+  ArrowRight, 
+  RefreshCw, 
+  LogIn, 
+  ShieldCheck 
 } from 'lucide-react';
 import { TRANSLATIONS } from '../constants/translations';
 import { LanguageCode, UserProfile } from '../types';
@@ -138,16 +138,45 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         return;
       }
 
-      // Construct user profile
       const authUser = authData.user;
-      let userProfile: UserProfile = {
+
+      // 2. Fetch directly from public.profiles to get authoritative role and permissions
+      let resolvedRole = authUser.user_metadata?.role || 'staff';
+      let resolvedPermissions = authUser.user_metadata?.permissions || null;
+      let resolvedName = authUser.user_metadata?.full_name || authUser.user_metadata?.name || '';
+      let resolvedTitle = authUser.user_metadata?.job_title || authUser.user_metadata?.title || 'Staff';
+
+      try {
+        const { data: profileRow, error: profileErr } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', authUser.id)
+          .maybeSingle();
+
+        if (profileRow) {
+          resolvedRole = profileRow.role || resolvedRole;
+          resolvedPermissions = profileRow.permissions || resolvedPermissions;
+          resolvedName = profileRow.employee_name || resolvedName;
+          resolvedTitle = profileRow.title || resolvedTitle;
+        }
+      } catch (profileFetchErr) {
+        console.warn('Could not query public.profiles table:', profileFetchErr);
+      }
+
+      // If logging in with the designated super admin email, enforce role
+      if (cleanEmail === 'info@whislly.com') {
+        resolvedRole = 'super_admin';
+      }
+
+      // Construct verified UserProfile
+      const userProfile: UserProfile = {
         uid: authUser.id,
         email: authUser.email || cleanEmail,
-        displayName: authUser.user_metadata?.company_name || authUser.email?.split('@')[0] || 'User',
-        fullName: authUser.user_metadata?.full_name || authUser.user_metadata?.name || '',
-        jobTitle: authUser.user_metadata?.job_title || authUser.user_metadata?.title || 'Team Member',
-        role: authUser.user_metadata?.role || 'super_admin',
-        permissions: authUser.user_metadata?.permissions,
+        displayName: resolvedName || authUser.user_metadata?.company_name || cleanEmail.split('@')[0] || 'User',
+        fullName: resolvedName,
+        jobTitle: resolvedTitle,
+        role: resolvedRole,
+        permissions: resolvedPermissions,
         companyName: authUser.user_metadata?.company_name || 'Whislly Partner',
         companyAddress: authUser.user_metadata?.company_address || 'Amman, Jordan',
         companyWebsite: authUser.user_metadata?.company_website || '',
@@ -158,25 +187,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         agreedToPrivacyPolicy: true
       };
 
-      try {
-        const { profile } = await SupabaseService.fetchProfileAndSettings(authUser.id);
-        if (profile) {
-          userProfile = { ...userProfile, ...profile };
-        }
-      } catch (err) {
-        console.warn('Profile fetch notice:', err);
-      }
-
       setAuthenticatedUser(userProfile);
       setVerificationEmail(cleanEmail);
 
-      // 2. Password verified! Now trigger 6-digit OTP code to the verified email
+      // 3. Trigger 6-digit OTP code to the email via Supabase Auth
       try {
-        // Request OTP code via Supabase / Resend Auth
-        await supabase.auth.signInWithOtp({
+        const { error: otpSendError } = await supabase.auth.signInWithOtp({
           email: cleanEmail,
-          options: { shouldCreateUser: false }
+          options: { 
+            shouldCreateUser: false 
+          }
         });
+
+        if (otpSendError) {
+          console.warn('signInWithOtp error, falling back to resendSignUpOtp:', otpSendError.message);
+          await SupabaseService.resendSignUpOtp(cleanEmail).catch(() => null);
+        }
       } catch (otpDispatchErr) {
         console.warn('Notice on OTP trigger dispatch:', otpDispatchErr);
       }
@@ -212,29 +238,46 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     setLoading(true);
     try {
-      // Attempt verification with Supabase
+      // 1. Attempt standard email OTP verification
+      let verifiedSuccessfully = false;
       const { data, error: verifyErr } = await supabase.auth.verifyOtp({
         email: verificationEmail,
         token: token,
         type: 'email'
       });
 
-      if (verifyErr) {
-        // Fallback check: magiclink type or stored user confirmation
+      if (!verifyErr && data?.user) {
+        verifiedSuccessfully = true;
+      } else {
+        // 2. Fallback check for magiclink/signup verification types
         const fallbackRes = await supabase.auth.verifyOtp({
           email: verificationEmail,
           token: token,
           type: 'signup'
         }).catch(() => null);
 
-        if (!fallbackRes?.data?.user && !authenticatedUser) {
-          setLoading(false);
-          setError(verifyErr.message || (isArabic ? 'رمز التحقق غير صحيح أو انتهت صلاحيته.' : 'Invalid or expired verification code.'));
-          return;
+        if (fallbackRes?.data?.user) {
+          verifiedSuccessfully = true;
         }
       }
 
-      const finalUser = authenticatedUser || (await SupabaseService.getCurrentSessionUser());
+      if (!verifiedSuccessfully && !authenticatedUser) {
+        setLoading(false);
+        setError(verifyErr?.message || (isArabic ? 'رمز التحقق غير صحيح أو انتهت صلاحيته.' : 'Invalid or expired verification code.'));
+        return;
+      }
+
+      // 3. Resolve authoritative final user
+      let finalUser: UserProfile | null = authenticatedUser;
+      if (!finalUser) {
+        finalUser = await SupabaseService.getCurrentSessionUser();
+      }
+
+      // Final sanity check: ensure info@whislly.com carries super_admin
+      if (finalUser && (finalUser.email?.toLowerCase() === 'info@whislly.com' || verificationEmail === 'info@whislly.com')) {
+        finalUser.role = 'super_admin';
+      }
+
       setLoading(false);
 
       if (finalUser) {
@@ -266,8 +309,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setResendLoading(false);
 
       if (resendErr) {
-        // Fallback to resendSignUpOtp if needed
-        await SupabaseService.resendSignUpOtp(verificationEmail);
+        await SupabaseService.resendSignUpOtp(verificationEmail).catch(() => null);
       }
 
       setResendCooldown(60);
