@@ -10,6 +10,12 @@ export const TRANSLATIONS = {
     events: "Events",
     eventsSubtitle: "Interactive Calendar & Pinned Priorities",
     reports: "Reports",
+    drive: "Drive",
+    driveSubtitle: "Personal Cloud File Storage & Management",
+    operations: "Operations",
+    operationsSubtitle: "Client Pipelines, Contracts & Billing Invoices",
+    workspace: "Workspace",
+    workspaceSubtitle: "Expenses, Financial Reports, Schedules & Personal Cloud Drive",
     account: "Account",
     
     // Auth & Legal
@@ -325,6 +331,12 @@ export const TRANSLATIONS = {
     events: "الفعاليات والمهام",
     eventsSubtitle: "التقويم التفاعلي والمهام المثبتة",
     reports: "التقارير",
+    drive: "الملفات (درايف)",
+    driveSubtitle: "المساحة السحابية لتخزين الملفات والمستندات",
+    operations: "العمليات التشغيلية",
+    operationsSubtitle: "إدارة العملاء، العقود، وفواتير المطالبات",
+    workspace: "مساحة العمل",
+    workspaceSubtitle: "إدارة المصروفات، التقارير، الفعاليات، والمستندات السحابية",
     account: "الحساب",
     
     // Auth & Legal

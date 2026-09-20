@@ -1,4 +1,7 @@
-// Define global window interface for TypeScript
+import { driver as bundledDriver } from "driver.js";
+import "driver.js/dist/driver.css";
+
+// Declare global window interface for Driver CDN fallback if present
 declare global {
   interface Window {
     driver?: {
@@ -11,10 +14,21 @@ declare global {
 }
 
 export const startAnimatedTour = () => {
-  const driverFactory = window.driver?.js?.driver || window.driver;
+  // Prefer bundled driver, fallback to global window.driver if needed
+  let driverFactory: ((config?: any) => any) | null = null;
+
+  if (typeof bundledDriver === 'function') {
+    driverFactory = bundledDriver;
+  } else if (typeof window.driver?.js?.driver === 'function') {
+    driverFactory = window.driver.js.driver;
+  } else if (typeof window.driver?.driver === 'function') {
+    driverFactory = window.driver.driver;
+  } else if (typeof (window as any).driver === 'function') {
+    driverFactory = (window as any).driver;
+  }
 
   if (!driverFactory) {
-    console.warn("Driver.js CDN script has not loaded yet.");
+    console.warn("Driver.js is not available.");
     return;
   }
 

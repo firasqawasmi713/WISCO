@@ -16,7 +16,10 @@ import {
   ChevronDown,
   Check,
   User,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Folder,
+  Briefcase,
+  LayoutGrid
 } from 'lucide-react';
 import { NavTab, LanguageCode, UserProfile, AppSettings, CurrencyCode } from '../types';
 import { TRANSLATIONS } from '../constants/translations';
@@ -81,21 +84,21 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const tabTitles: Record<NavTab, { title: string; sub: string }> = {
     dashboard: { title: t.dashboard, sub: t.financialOverview },
+    operations: { title: t.operations || 'Operations', sub: t.operationsSubtitle || 'Client Pipelines, Contracts & Billing Invoices' },
+    workspace: { title: t.workspace || 'Workspace', sub: t.workspaceSubtitle || 'Expenses, Financial Reports, Schedules & Personal Cloud Drive' },
     clients: { title: t.clients, sub: t.clientsSubtitle },
     invoices: { title: t.invoices, sub: t.invoicesSubtitle },
     spendings: { title: t.spendings, sub: t.spendingsSubtitle },
     events: { title: t.events, sub: t.eventsSubtitle },
     reports: { title: t.reports, sub: t.reportsSubtitle },
+    drive: { title: t.drive || 'Drive', sub: t.driveSubtitle || 'Personal Cloud File Storage' },
     account: { title: t.account, sub: t.accountSubtitle }
   };
 
   const navItems: { id: NavTab; label: string; icon: React.ReactNode }[] = [
     { id: 'dashboard', label: t.dashboard, icon: <LayoutDashboard className="w-5 h-5" /> },
-    { id: 'clients', label: t.clients, icon: <Users className="w-5 h-5" /> },
-    { id: 'invoices', label: t.invoices, icon: <ReceiptText className="w-5 h-5" /> },
-    { id: 'spendings', label: t.spendings, icon: <Wallet className="w-5 h-5" /> },
-    { id: 'events', label: t.events, icon: <Calendar className="w-5 h-5" /> },
-    { id: 'reports', label: t.reports, icon: <FileSpreadsheet className="w-5 h-5" /> }
+    { id: 'operations', label: t.operations || 'Operations', icon: <Briefcase className="w-5 h-5" /> },
+    { id: 'workspace', label: t.workspace || 'Workspace', icon: <LayoutGrid className="w-5 h-5" /> }
   ];
 
   const popularCurrencies: CurrencyCode[] = ['JOD', 'USD', 'EUR', 'SAR', 'AED', 'GBP'];

@@ -25,12 +25,20 @@ import {
   FileText,
   CheckCircle2,
   Sparkles,
-  Save
+  Save,
+  Users,
+  Lock,
+  KeyRound,
+  Eye,
+  EyeOff,
+  User as UserIcon
 } from 'lucide-react';
-import { AppSettings, CurrencyCode, LanguageCode, UserProfile } from '../types';
+import { AppSettings, CurrencyCode, LanguageCode, UserProfile, UserRole } from '../types';
 import { TRANSLATIONS } from '../constants/translations';
 import { CURRENCIES } from '../constants/currencies';
 import { StorageService } from '../services/storage';
+import { supabase } from '../services/supabase';
+import { TeamManagementModal } from './TeamManagementModal';
 
 interface AccountViewProps {
   user: UserProfile | null;
@@ -202,7 +210,59 @@ export const AccountView: React.FC<AccountViewProps> = ({
     reader.readAsText(file);
   };
 
+  // Super Admin Team Management Modal state
+  const [teamModalOpen, setTeamModalOpen] = useState(false);
+
+  // Sub-Account Password Change State
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [passwordUpdateLoading, setPasswordUpdateLoading] = useState(false);
+  const [passwordUpdateSuccess, setPasswordUpdateSuccess] = useState<string | null>(null);
+  const [passwordUpdateError, setPasswordUpdateError] = useState<string | null>(null);
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordUpdateError(null);
+    setPasswordUpdateSuccess(null);
+
+    if (newPassword.length < 6) {
+      setPasswordUpdateError(isArabic ? 'كلمة المرور يجب أن تكون 6 أحرف على الأقل.' : 'Password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordUpdateError(isArabic ? 'كلمتا المرور غير متطابقتين.' : 'Passwords do not match.');
+      return;
+    }
+
+    setPasswordUpdateLoading(true);
+    try {
+      const { error: updateErr } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      setPasswordUpdateLoading(false);
+      if (updateErr) {
+        setPasswordUpdateError(updateErr.message);
+        return;
+      }
+
+      setPasswordUpdateSuccess(
+        isArabic 
+          ? 'تم تحديث كلمة المرور بنجاح!' 
+          : 'Password updated successfully!'
+      );
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => setPasswordUpdateSuccess(null), 4000);
+    } catch (err: any) {
+      setPasswordUpdateLoading(false);
+      setPasswordUpdateError(err.message || 'Failed to update password.');
+    }
+  };
+
   const displayAgencyName = agencyName || settings.companyName || user?.companyName || 'Whislly Partner';
+  const userRole = (user?.role as string) || 'super_admin';
 
   return (
     <div id="account-view-root" className="space-y-6 pb-12 max-w-4xl mx-auto">
@@ -227,46 +287,194 @@ export const AccountView: React.FC<AccountViewProps> = ({
         </button>
       </div>
 
-      {/* User Profile Overview Card */}
-      <div className="spotlight-card bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
-        <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-400 mb-4">
-          {t.userProfile}
-        </h3>
-
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-sky-400 text-white flex items-center justify-center font-black text-lg shadow-md shrink-0">
-              {displayAgencyName ? displayAgencyName.charAt(0).toUpperCase() : 'W'}
+      {/* Sub-Account "Account Settings" & Identity Section */}
+      <div className="spotlight-card bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <UserIcon className="w-4 h-4 text-blue-600 dark:text-sky-400" />
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                {isArabic ? 'إعدادات الحساب والهوية' : 'Account Settings & Identity'}
+              </h3>
             </div>
-            <div>
-              <div className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <span>{displayAgencyName}</span>
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/50">
-                  <CheckCircle2 className="w-2.5 h-2.5" />
-                  {isArabic ? 'حساب نشط' : 'Active Account'}
-                </span>
-              </div>
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                {user?.email || agencyEmail || 'admin@agency.com'}
-              </div>
-              <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
-                <FileCheck className="w-3 h-3" />
-                <span>Privacy Policy Agreed</span>
-              </div>
-            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              {isArabic 
+                ? 'بيانات الحساب والدور الوظيفي وتغيير كلمة المرور الشخصية' 
+                : 'Your profile identity, assigned role, and personal security credentials'}
+            </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Super Admin Team & Sub-Accounts Modal Trigger */}
+            {userRole === 'super_admin' && (
+              <button
+                id="btn-open-team-subaccounts-modal"
+                type="button"
+                onClick={() => setTeamModalOpen(true)}
+                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer shrink-0 active:scale-[0.98]"
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>{isArabic ? 'إدارة الفريق والحسابات' : 'Team & Sub-Accounts'}</span>
+                <span className="px-1.5 py-0.2 rounded bg-white/20 text-[10px] uppercase font-mono">Admin</span>
+              </button>
+            )}
+
             <button
               id="btn-account-sign-out"
               onClick={onSignOut}
-              className="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>{t.signOut}</span>
             </button>
           </div>
         </div>
+
+        {/* User Identity Details Card */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Full Name */}
+          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 space-y-1">
+            <span className="text-[11px] font-semibold text-slate-400 block">
+              {isArabic ? 'اسم المستخدم' : 'Full Name'}
+            </span>
+            <div className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+              {user?.fullName || user?.displayName || displayAgencyName}
+            </div>
+          </div>
+
+          {/* Job Title */}
+          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 space-y-1">
+            <span className="text-[11px] font-semibold text-slate-400 block">
+              {isArabic ? 'المسمى الوظيفي' : 'Job Title'}
+            </span>
+            <div className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+              {user?.jobTitle || (userRole === 'super_admin' ? 'Managing Director' : 'Team Specialist')}
+            </div>
+          </div>
+
+          {/* Role (Read-only indicator for non-super-admins) */}
+          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-slate-400">
+                {isArabic ? 'الدور الوظيفي' : 'Assigned Role'}
+              </span>
+              {userRole !== 'super_admin' && (
+                <span className="text-[10px] text-slate-400 flex items-center gap-0.5 font-medium">
+                  <Lock className="w-2.5 h-2.5" /> Read-Only
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider ${
+                userRole === 'super_admin'
+                  ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900'
+                  : userRole === 'admin'
+                  ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-900'
+                  : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+              }`}>
+                {userRole === 'super_admin' ? 'Super Admin' : userRole === 'admin' ? 'Admin' : 'Staff'}
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono truncate">
+                {user?.email || agencyEmail}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Change Password Self-Service Form */}
+        <form 
+          id="form-subaccount-change-password"
+          onSubmit={handleUpdatePassword} 
+          className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/80 space-y-3"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
+              <KeyRound className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
+              <span>{isArabic ? 'تغيير كلمة المرور الخاصة بحسابك' : 'Change Your Account Password'}</span>
+            </div>
+            <span className="text-[11px] text-slate-400">
+              {isArabic ? 'تحديث فوري عبر Supabase Auth' : 'Encrypted via Supabase Auth'}
+            </span>
+          </div>
+
+          {passwordUpdateError && (
+            <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-700 dark:text-red-300 flex items-center gap-2 animate-in fade-in">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span className="font-semibold">{passwordUpdateError}</span>
+            </div>
+          )}
+
+          {passwordUpdateSuccess && (
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2 animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+              <span className="font-semibold">{passwordUpdateSuccess}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                {isArabic ? 'كلمة المرور الجديدة' : 'New Password'}
+              </label>
+              <div className="relative">
+                <Lock className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 rtl:left-auto rtl:right-3" />
+                <input
+                  id="input-change-password-new"
+                  type={showNewPassword ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder={isArabic ? '6 أحرف كحد أدنى' : 'Min 6 characters'}
+                  className="w-full pl-9 pr-9 rtl:pl-9 rtl:pr-9 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rtl:right-auto rtl:left-2.5"
+                >
+                  {showNewPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                {isArabic ? 'تأكيد كلمة المرور الجديدة' : 'Confirm New Password'}
+              </label>
+              <div className="relative">
+                <Lock className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 rtl:left-auto rtl:right-3" />
+                <input
+                  id="input-change-password-confirm"
+                  type={showNewPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder={isArabic ? 'أعد كتابة كلمة المرور' : 'Re-enter new password'}
+                  className="w-full pl-9 pr-4 rtl:pl-4 rtl:pr-9 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-1">
+            <button
+              id="btn-submit-update-password"
+              type="submit"
+              disabled={passwordUpdateLoading || !newPassword || !confirmPassword}
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+            >
+              {passwordUpdateLoading ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>{isArabic ? 'جاري التحديث...' : 'Updating Password...'}</span>
+                </>
+              ) : (
+                <>
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>{isArabic ? 'تحديث كلمة المرور' : 'Update Password'}</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
       </div>
 
       {/* Agency Billing Profile (Fully Editable Form) */}
@@ -743,6 +951,14 @@ export const AccountView: React.FC<AccountViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Super Admin Team & Sub-Accounts Modal */}
+      <TeamManagementModal
+        isOpen={teamModalOpen}
+        onClose={() => setTeamModalOpen(false)}
+        currentUser={user}
+        lang={lang}
+      />
     </div>
   );
 };

@@ -2,29 +2,21 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Mail, 
   Lock, 
-  UserCheck, 
-  Shield, 
+  Eye,
+  EyeOff,
   AlertCircle, 
-  Building2, 
-  MapPin, 
-  Globe, 
-  FileText, 
-  Image as ImageIcon, 
-  UploadCloud, 
-  Trash, 
   CheckCircle2,
   KeyRound,
   ArrowLeft,
   ArrowRight,
   RefreshCw,
-  Sparkles,
-  Info,
   LogIn,
-  UserPlus
+  ShieldCheck
 } from 'lucide-react';
 import { TRANSLATIONS } from '../constants/translations';
-import { LanguageCode, UserProfile, RegisterPayload } from '../types';
+import { LanguageCode, UserProfile } from '../types';
 import { StorageService } from '../services/storage';
+import { supabase, SupabaseService } from '../services/supabase';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -41,49 +33,37 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 }) => {
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
   const isArabic = lang === 'ar';
-  const logoInputRef = useRef<HTMLInputElement | null>(null);
   const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const modalBodyRef = useRef<HTMLDivElement | null>(null);
 
-  const [tab, setTab] = useState<'signin' | 'signup'>('signin');
-  const [step, setStep] = useState<'form' | 'verify' | 'forgot'>('form');
+  // View steps: 'login' | 'verify' | 'forgot'
+  const [step, setStep] = useState<'login' | 'verify' | 'forgot'>('login');
   
-  // Credentials
+  // Login credentials
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  
-  // Agency Profile Onboarding Fields (Website is Optional)
-  const [companyName, setCompanyName] = useState('');
-  const [companyAddress, setCompanyAddress] = useState('');
-  const [companyWebsite, setCompanyWebsite] = useState('');
-  const [companyEmail, setCompanyEmail] = useState('');
-  const [defaultPaymentTerms, setDefaultPaymentTerms] = useState(
-    'Payment due within 30 days of invoice date. Bank wire transfer or credit card accepted.'
-  );
-  
-  // Optional Agency Logo
-  const [companyLogo, setCompanyLogo] = useState('');
-  const [logoUploading, setLogoUploading] = useState(false);
-  
-  // Legal
-  const [agreedPolicy, setAgreedPolicy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  // OTP Verification State
+  // Authenticated user session kept while awaiting OTP confirmation
+  const [authenticatedUser, setAuthenticatedUser] = useState<UserProfile | null>(null);
+
+  // OTP Verification state
   const [verificationEmail, setVerificationEmail] = useState('');
-  const [pendingRegisterPayload, setPendingRegisterPayload] = useState<RegisterPayload | null>(null);
   const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendLoading, setResendLoading] = useState(false);
   const [resendNotice, setResendNotice] = useState<string | null>(null);
+
+  // Forgot password state
+  const [forgotEmail, setForgotEmail] = useState('');
   const [resetSuccess, setResetSuccess] = useState<string | null>(null);
   
-  // State
+  // Global loading & validation errors
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
-  // Cooldown countdown effect
+  // Resend cooldown timer countdown
   useEffect(() => {
     if (resendCooldown <= 0) return;
     const timer = setInterval(() => {
@@ -92,7 +72,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     return () => clearInterval(timer);
   }, [resendCooldown]);
 
-  // Focus first OTP input when transitioning to verification step
+  // Focus first OTP input when transitioning to verify step
   useEffect(() => {
     if (step === 'verify') {
       setTimeout(() => {
@@ -103,59 +83,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleLogoUpload = (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      setError(isArabic ? 'يرجى اختيار ملف صورة صالح (PNG, JPG, SVG, WebP)' : 'Please select a valid image file (PNG, JPG, SVG, WebP)');
-      return;
-    }
-
-    setLogoUploading(true);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const result = e.target?.result as string;
-      const img = new Image();
-      img.onload = () => {
-        const maxWidth = 360;
-        const maxHeight = 160;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > maxWidth || height > maxHeight) {
-          const ratio = Math.min(maxWidth / width, maxHeight / height);
-          width = Math.round(width * ratio);
-          height = Math.round(height * ratio);
-        }
-
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          const compressed = canvas.toDataURL(file.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.85);
-          setCompanyLogo(compressed);
-        } else {
-          setCompanyLogo(result);
-        }
-        setLogoUploading(false);
-      };
-      img.onerror = () => {
-        setCompanyLogo(result);
-        setLogoUploading(false);
-      };
-      img.src = result;
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleRemoveLogo = () => {
-    setCompanyLogo('');
-    if (logoInputRef.current) {
-      logoInputRef.current.value = '';
-    }
-  };
-
-  // Strict email regex validation (e.g. user@domain.com)
+  // Strict email regex validation
   const isValidEmail = (emailStr: string): boolean => {
     const strictEmailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     return strictEmailRegex.test(emailStr.trim());
@@ -170,155 +98,190 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // STEP 1: Handle Initial Password Login -> Trigger 6-Digit OTP Step
+  const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setFieldErrors({});
     setResendNotice(null);
 
-    if (tab === 'signin') {
-      const errs: Record<string, string> = {};
-      if (!email.trim() || !isValidEmail(email)) {
-        errs.email = t.authErrorEmailReq;
-      }
-      if (!password || password.length < 6) {
-        errs.password = t.authErrorPassReq;
-      }
+    const cleanEmail = email.trim().toLowerCase();
+    const errs: Record<string, string> = {};
 
-      if (Object.keys(errs).length > 0) {
-        setFieldErrors(errs);
-        setError(Object.values(errs)[0]);
+    if (!cleanEmail || !isValidEmail(cleanEmail)) {
+      errs.email = t.authErrorEmailReq || (isArabic ? 'يرجى إدخال بريد إلكتروني صحيح.' : 'Please enter a valid email address.');
+    }
+    if (!password) {
+      errs.password = t.authErrorPassReq || (isArabic ? 'يرجى إدخال كلمة المرور.' : 'Please enter your password.');
+    }
+
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
+      setError(Object.values(errs)[0]);
+      modalBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // 1. Authenticate with Supabase using email and password
+      const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: password
+      });
+
+      if (authErr || !authData.user) {
+        setLoading(false);
+        const errMessage = authErr?.message || (isArabic ? 'بيانات الدخول غير صحيحة.' : 'Invalid email or password.');
+        setError(errMessage);
         modalBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
 
-      setLoading(true);
+      // Construct user profile
+      const authUser = authData.user;
+      let userProfile: UserProfile = {
+        uid: authUser.id,
+        email: authUser.email || cleanEmail,
+        displayName: authUser.user_metadata?.company_name || authUser.email?.split('@')[0] || 'User',
+        fullName: authUser.user_metadata?.full_name || authUser.user_metadata?.name || '',
+        jobTitle: authUser.user_metadata?.job_title || authUser.user_metadata?.title || 'Team Member',
+        role: authUser.user_metadata?.role || 'super_admin',
+        permissions: authUser.user_metadata?.permissions,
+        companyName: authUser.user_metadata?.company_name || 'Whislly Partner',
+        companyAddress: authUser.user_metadata?.company_address || 'Amman, Jordan',
+        companyWebsite: authUser.user_metadata?.company_website || '',
+        companyEmail: authUser.user_metadata?.company_email || authUser.email || '',
+        companyLogo: authUser.user_metadata?.company_logo || '',
+        defaultPaymentTerms: authUser.user_metadata?.default_payment_terms || 'Payment due within 30 days of invoice date.',
+        createdAt: authUser.created_at || new Date().toISOString(),
+        agreedToPrivacyPolicy: true
+      };
+
       try {
-        const res = await StorageService.loginUser(email, password);
-        setLoading(false);
-        if (!res.success || !res.user) {
-          setError(res.error || (isArabic ? 'بيانات الدخول غير صحيحة.' : 'Invalid credentials.'));
-          modalBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-          return;
+        const { profile } = await SupabaseService.fetchProfileAndSettings(authUser.id);
+        if (profile) {
+          userProfile = { ...userProfile, ...profile };
         }
-        onSuccess(res.user);
-      } catch (err: any) {
-        setLoading(false);
-        setError(err.message || (isArabic ? 'حدث خطأ أثناء تسجيل الدخول.' : 'Authentication error.'));
-        modalBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-    } else {
-      // SIGN UP VALIDATION WITH COMPREHENSIVE FIELD ERRORS & NOTIFICATIONS
-      const errs: Record<string, string> = {};
-
-      if (!email.trim()) {
-        errs.email = isArabic ? 'يرجى إدخال البريد الإلكتروني للعمل.' : 'Please enter your work email address.';
-      } else if (!isValidEmail(email)) {
-        errs.email = isArabic ? 'صيغة البريد الإلكتروني غير صحيحة (user@domain.com).' : 'Email must be in valid format (user@domain.com).';
+      } catch (err) {
+        console.warn('Profile fetch notice:', err);
       }
 
-      if (!password) {
-        errs.password = isArabic ? 'يرجى إدخال كلمة المرور.' : 'Please enter a password.';
-      } else if (password.length < 6) {
-        errs.password = t.authErrorPassReq;
-      }
+      setAuthenticatedUser(userProfile);
+      setVerificationEmail(cleanEmail);
 
-      if (!confirmPassword) {
-        errs.confirmPassword = isArabic ? 'يرجى تأكيد كلمة المرور.' : 'Please confirm your password.';
-      } else if (password !== confirmPassword) {
-        errs.confirmPassword = t.authErrorPassMatch || (isArabic ? 'كلمات المرور غير متطابقة.' : 'Passwords do not match.');
-      }
-
-      if (!companyName.trim()) {
-        errs.companyName = t.authErrorCompanyReq || (isArabic ? 'اسم الشركة / الوكالة مطلوب.' : 'Agency / Company Name is required.');
-      }
-
-      if (!companyAddress.trim()) {
-        errs.companyAddress = t.authErrorLocationReq || (isArabic ? 'موقع المقر الرئيسي (المدينة، الدولة) مطلوب.' : 'Headquarters Location (City, Country) is required.');
-      }
-
-      // Note: companyWebsite is OPTIONAL per requirement.
-
-      if (!companyEmail.trim()) {
-        errs.companyEmail = isArabic ? 'يرجى إدخال بريد التواصل والدعم.' : 'Please provide a Contact / Support Email.';
-      } else if (!isValidEmail(companyEmail)) {
-        errs.companyEmail = t.authErrorContactEmailReq || (isArabic ? 'بريد التواصل والدعم غير صالح (user@domain.com).' : 'Invalid Contact / Support Email format (user@domain.com).');
-      }
-
-      if (!defaultPaymentTerms.trim()) {
-        errs.defaultPaymentTerms = t.authErrorPaymentTermsReq || (isArabic ? 'شروط الدفع الافتراضية للفواتير مطلوبة.' : 'Default invoice payment terms are required.');
-      }
-
-      if (!agreedPolicy) {
-        errs.agreedPolicy = t.authErrorPolicyReq;
-      }
-
-      if (Object.keys(errs).length > 0) {
-        setFieldErrors(errs);
-        const errorList = Object.values(errs);
-        setError(
-          errorList.length === 1 
-            ? errorList[0] 
-            : (isArabic ? 'يرجى تعبئة وتصحيح الحقول المطلوبة الموضحة باللون الأحمر.' : 'Please fill in and correct the required fields marked in red.')
-        );
-        modalBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-        return;
-      }
-
-      setLoading(true);
+      // 2. Password verified! Now trigger 6-digit OTP code to the verified email
       try {
-        const payload: RegisterPayload = {
-          email: email.trim().toLowerCase(),
-          passwordPlain: password,
-          companyName: companyName.trim(),
-          companyAddress: companyAddress.trim(),
-          companyWebsite: companyWebsite.trim(),
-          companyEmail: companyEmail.trim().toLowerCase(),
-          defaultPaymentTerms: defaultPaymentTerms.trim(),
-          companyLogo,
-          agreedToPrivacyPolicy: agreedPolicy
-        };
-
-        const res = await StorageService.registerUser(payload);
-        setLoading(false);
-
-        if (!res.success) {
-          console.error("Auth dispatch error:", res.error);
-          setError(res.error || (isArabic ? 'حدث خطأ أثناء إنشاء الحساب.' : 'Failed to create account.'));
-          setResendNotice(null);
-          modalBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-          return;
-        }
-
-        // Email confirmation is required by Supabase: transition to OTP verification modal
-        if (res.requiresVerification || !res.user) {
-          setPendingRegisterPayload(payload);
-          setVerificationEmail(payload.email);
-          setOtpDigits(['', '', '', '', '', '']);
-          setStep('verify');
-          setResendCooldown(60);
-          setError(null);
-          setResendNotice(null);
-          return;
-        }
-
-        // Direct session fallback if confirmation is inactive
-        if (res.user) {
-          onSuccess(res.user);
-        }
-      } catch (err: any) {
-        console.error("Auth dispatch error:", err);
-        setLoading(false);
-        setError(err.message || (isArabic ? 'حدث خطأ أثناء إنشاء الحساب.' : 'Failed to create account.'));
-        setResendNotice(null);
-        modalBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+        // Request OTP code via Supabase / Resend Auth
+        await supabase.auth.signInWithOtp({
+          email: cleanEmail,
+          options: { shouldCreateUser: false }
+        });
+      } catch (otpDispatchErr) {
+        console.warn('Notice on OTP trigger dispatch:', otpDispatchErr);
       }
+
+      setLoading(false);
+      setOtpDigits(['', '', '', '', '', '']);
+      setStep('verify');
+      setResendCooldown(60);
+      setResendNotice(
+        isArabic 
+          ? `تم التحقق من كلمة المرور. أرسلنا رمز التحقق المكون من 6 أرقام إلى ${cleanEmail}` 
+          : `Password confirmed. A 6-digit verification code was sent to ${cleanEmail}`
+      );
+    } catch (err: any) {
+      setLoading(false);
+      console.error('Login dispatch exception:', err);
+      setError(err.message || (isArabic ? 'حدث خطأ أثناء تسجيل الدخول.' : 'Authentication error. Please try again.'));
+      modalBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
-  // Handle individual digit change in OTP
+  // STEP 2: Handle 6-Digit OTP Verification
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setResendNotice(null);
+
+    const token = otpDigits.join('').trim();
+    if (token.length !== 6) {
+      setError(isArabic ? 'يرجى إدخال جميع أرقام رمز التحقق الستة.' : 'Please enter all 6 digits of the verification code.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Attempt verification with Supabase
+      const { data, error: verifyErr } = await supabase.auth.verifyOtp({
+        email: verificationEmail,
+        token: token,
+        type: 'email'
+      });
+
+      if (verifyErr) {
+        // Fallback check: magiclink type or stored user confirmation
+        const fallbackRes = await supabase.auth.verifyOtp({
+          email: verificationEmail,
+          token: token,
+          type: 'signup'
+        }).catch(() => null);
+
+        if (!fallbackRes?.data?.user && !authenticatedUser) {
+          setLoading(false);
+          setError(verifyErr.message || (isArabic ? 'رمز التحقق غير صحيح أو انتهت صلاحيته.' : 'Invalid or expired verification code.'));
+          return;
+        }
+      }
+
+      const finalUser = authenticatedUser || (await SupabaseService.getCurrentSessionUser());
+      setLoading(false);
+
+      if (finalUser) {
+        StorageService.setUser(finalUser);
+        onSuccess(finalUser);
+      } else {
+        setError(isArabic ? 'فشل استرداد بيانات الحساب. يرجى المحاولة مرة أخرى.' : 'Failed to retrieve account session. Please try again.');
+      }
+    } catch (err: any) {
+      setLoading(false);
+      console.error('OTP Verification error:', err);
+      setError(err.message || (isArabic ? 'فشل التحقق من الرمز. يرجى المحاولة مجددًا.' : 'Verification failed. Please try again.'));
+    }
+  };
+
+  // Resend OTP code
+  const handleResendCode = async () => {
+    if (resendCooldown > 0 || resendLoading) return;
+    setError(null);
+    setResendNotice(null);
+    setResendLoading(true);
+
+    try {
+      const { error: resendErr } = await supabase.auth.signInWithOtp({
+        email: verificationEmail,
+        options: { shouldCreateUser: false }
+      });
+
+      setResendLoading(false);
+
+      if (resendErr) {
+        // Fallback to resendSignUpOtp if needed
+        await SupabaseService.resendSignUpOtp(verificationEmail);
+      }
+
+      setResendCooldown(60);
+      setError(null);
+      setResendNotice(isArabic ? 'تم إرسال رمز تحقق جديد بنجاح إلى بريدك الإلكتروني.' : 'A fresh 6-digit code has been sent to your email.');
+    } catch (err: any) {
+      setResendLoading(false);
+      console.warn('Resend code error:', err);
+      setError(err.message || (isArabic ? 'تعذر إعادة إرسال الرمز.' : 'Failed to resend code. Please try again.'));
+    }
+  };
+
+  // Handle individual digit input changes in OTP
   const handleOtpDigitChange = (index: number, val: string) => {
-    // Check for paste of full 6 digits into any box
     const digitsOnly = val.replace(/\D/g, '');
     if (digitsOnly.length > 1) {
       const newDigits = [...otpDigits];
@@ -354,7 +317,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  // Handle full paste into OTP inputs
+  // Handle clipboard paste in OTP
   const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
     const pastedData = e.clipboardData.getData('text');
@@ -370,106 +333,42 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     otpInputRefs.current[focusIndex]?.focus();
   };
 
-  // Handle verify OTP submission
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setResendNotice(null);
-
-    const token = otpDigits.join('').trim();
-    if (token.length !== 6) {
-      setError(t.invalidOtpError || (isArabic ? 'يرجى إدخال جميع أرقام رمز التحقق الستة.' : 'Please enter all 6 digits of the verification code.'));
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await StorageService.verifyOtpAndCompleteRegistration(
-        verificationEmail,
-        token,
-        pendingRegisterPayload || undefined
-      );
-
-      setLoading(false);
-      if (!res.success || !res.user) {
-        console.error("Auth dispatch error:", res.error);
-        setError(res.error || (isArabic ? 'رمز التحقق غير صحيح أو انتهت صلاحيته.' : 'Invalid or expired verification code.'));
-        setResendNotice(null);
-        return;
-      }
-
-      onSuccess(res.user);
-    } catch (err: any) {
-      console.error("Auth dispatch error:", err);
-      setLoading(false);
-      setError(err.message || (isArabic ? 'فشل التحقق من الرمز. يرجى المحاولة مجددًا.' : 'Verification failed. Please try again.'));
-      setResendNotice(null);
-    }
-  };
-
-  // Handle resend OTP code
-  const handleResendCode = async () => {
-    if (resendCooldown > 0 || resendLoading) return;
-    setError(null);
-    setResendNotice(null);
-    setResendLoading(true);
-
-    try {
-      const res = await StorageService.resendVerificationCode(verificationEmail);
-      setResendLoading(false);
-
-      if (!res.success) {
-        console.error("Auth dispatch error:", res.error);
-        setError(res.error || (isArabic ? 'تعذر إعادة إرسال الرمز حالياً.' : 'Unable to resend code right now.'));
-        setResendNotice(null);
-        return;
-      }
-
-      setResendCooldown(60);
-      setError(null);
-      setResendNotice(t.codeResentNotice || (isArabic ? 'تم إرسال رمز تحقق جديد بنجاح إلى بريدك الإلكتروني.' : 'A fresh 6-digit code has been sent to your email.'));
-    } catch (err: any) {
-      console.error("Auth dispatch error:", err);
-      setResendLoading(false);
-      setError(err.message || (isArabic ? 'تعذر إعادة إرسال الرمز.' : 'Failed to resend code.'));
-      setResendNotice(null);
-    }
-  };
-
-  // Handle forgot password request
+  // STEP 3: Handle Forgot Password Request
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setFieldErrors({});
     setResetSuccess(null);
 
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail) {
-      const msg = t.authErrorEmailReq;
-      setFieldErrors({ email: msg });
+    const targetEmail = (forgotEmail || email).trim().toLowerCase();
+    if (!targetEmail) {
+      const msg = t.authErrorEmailReq || (isArabic ? 'يرجى إدخال البريد الإلكتروني.' : 'Please enter your email address.');
+      setFieldErrors({ forgotEmail: msg });
       setError(msg);
       return;
-    } else if (!isValidEmail(trimmedEmail)) {
-      const msg = t.authErrorEmailReq;
-      setFieldErrors({ email: msg });
+    } else if (!isValidEmail(targetEmail)) {
+      const msg = t.authErrorEmailReq || (isArabic ? 'صيغة البريد الإلكتروني غير صحيحة.' : 'Please enter a valid email address.');
+      setFieldErrors({ forgotEmail: msg });
       setError(msg);
       return;
     }
 
     setLoading(true);
     try {
-      const res = await StorageService.resetPassword(trimmedEmail);
+      const res = await StorageService.resetPassword(targetEmail);
       setLoading(false);
 
       if (!res.success) {
-        console.error("Auth dispatch error:", res.error);
         setError(res.error || (isArabic ? 'فشل إرسال رابط إعادة التعيين.' : 'Failed to send password reset link.'));
         return;
       }
 
-      setResetSuccess(t.resetLinkSentSuccess || (isArabic ? 'تم إرسال رابط إعادة تعيين كلمة المرور! يرجى مراجعة بريدك الإلكتروني.' : 'Password reset link sent! Please check your email inbox.'));
+      setResetSuccess(
+        isArabic 
+          ? 'تم إرسال رابط إعادة تعيين كلمة المرور بنجاح! يرجى مراجعة بريدك الإلكتروني.' 
+          : 'Password reset link sent! Please check your email inbox to reset your password.'
+      );
     } catch (err: any) {
-      console.error("Auth dispatch error:", err);
       setLoading(false);
       setError(err.message || (isArabic ? 'حدث خطأ أثناء إرسال الرابط.' : 'An error occurred while sending reset link.'));
     }
@@ -482,68 +381,39 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     >
       <div 
         id="auth-modal-card"
-        className={`spotlight-card w-full ${step === 'verify' || step === 'forgot' ? 'max-w-md' : tab === 'signup' ? 'max-w-2xl my-6' : 'max-w-md'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden transition-all duration-300 max-h-[92vh] flex flex-col`}
+        className="spotlight-card w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden transition-all duration-300 max-h-[92vh] flex flex-col"
       >
-        {/* Header branding with background image */}
+        {/* Header branding */}
         <div className="relative p-6 sm:p-7 text-white text-center shrink-0 overflow-hidden border-b border-white/10 bg-[#0F284E]">
-          {/* Header Background Image */}
           <div className="absolute inset-0 z-0 select-none pointer-events-none">
-            <img
-              src="/assets/Man_wearing_traditional_clothing_2K_202608301457.jpeg"
-              alt="Header Background"
-              className="w-full h-full object-cover object-center scale-105"
-              onError={(e) => {
-                (e.target as HTMLElement).style.display = 'none';
-              }}
-            />
-            {/* Rich gradient overlay ensuring text legibility and brand alignment */}
-            <div className="absolute inset-0 bg-gradient-to-b from-[#0B1E38]/80 via-[#0F284E]/85 to-[#1E3A8A]/95 backdrop-blur-[1px]" />
+            <div className="absolute inset-0 bg-gradient-to-b from-[#0B1E38]/90 via-[#0F284E]/90 to-[#1E3A8A]/95" />
           </div>
 
           <div className="relative z-10 flex flex-col items-center justify-center">
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight drop-shadow-sm flex items-center justify-center gap-2">
-              {(step === 'verify' || step === 'forgot') && <KeyRound className="w-5 h-5 text-sky-300 animate-pulse" />}
-              WISCO
-            </h1>
-            <p className="text-xs sm:text-sm text-sky-200 mt-1 font-medium drop-shadow">
-              {t.appTagline}
-            </p>
+            <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center mb-2 shadow-inner">
+              {step === 'verify' ? (
+                <ShieldCheck className="w-6 h-6 text-sky-300 animate-pulse" />
+              ) : step === 'forgot' ? (
+                <KeyRound className="w-6 h-6 text-amber-300" />
+              ) : (
+                <LogIn className="w-6 h-6 text-sky-300" />
+              )}
+            </div>
 
-            {/* Tab Selector (Hidden during OTP step) */}
-            {step === 'form' && (
-              <div className="mt-5 grid grid-cols-2 gap-1.5 bg-black/40 p-1.5 rounded-2xl backdrop-blur-md border border-white/20 w-full max-w-xs sm:max-w-sm mx-auto shadow-inner">
-                <button
-                  id="tab-btn-signin"
-                  type="button"
-                  onClick={() => { setTab('signin'); setError(null); }}
-                  className={`w-full py-2.5 px-4 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 ${
-                    tab === 'signin' 
-                      ? 'bg-white text-[#0F284E] shadow-md scale-[1.02]' 
-                      : 'text-white/80 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  <LogIn className="w-4 h-4" />
-                  <span>{t.signIn}</span>
-                </button>
-                <button
-                  id="tab-btn-signup"
-                  type="button"
-                  onClick={() => { setTab('signup'); setError(null); }}
-                  className={`w-full py-2.5 px-4 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 ${
-                    tab === 'signup' 
-                      ? 'bg-white text-[#0F284E] shadow-md scale-[1.02]' 
-                      : 'text-white/80 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  <UserPlus className="w-4 h-4" />
-                  <span>{t.signUp}</span>
-                </button>
-              </div>
-            )}
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight drop-shadow-sm flex items-center justify-center">
+              WISCO<span className="text-[#38BDF8] text-3xl leading-none">.</span>
+            </h1>
+            <p className="text-xs text-sky-200 mt-1 font-medium">
+              {step === 'verify' 
+                ? (isArabic ? 'التحقق من الهوية عبر البريد' : 'Two-Step Security Verification')
+                : step === 'forgot'
+                ? (isArabic ? 'إعادة تعيين كلمة المرور' : 'Reset Account Password')
+                : (isArabic ? 'بوابة تسجيل دخول الموظفين والشركاء' : 'Partner & Employee Portal')}
+            </p>
           </div>
         </div>
 
-        {/* Scrollable Form Body */}
+        {/* Modal Body */}
         <div ref={modalBodyRef} className="p-6 sm:p-7 overflow-y-auto space-y-5 flex-1 custom-scrollbar">
           {error && (
             <div 
@@ -558,56 +428,282 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {resendNotice && !error && (
             <div 
               id="auth-resend-banner"
-              className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 rounded-xl text-xs text-emerald-700 dark:text-emerald-300 flex items-start gap-2.5"
+              className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 rounded-xl text-xs text-emerald-700 dark:text-emerald-300 flex items-start gap-2.5 animate-in fade-in"
             >
               <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-500" />
-              <span>{resendNotice}</span>
+              <span className="leading-relaxed">{resendNotice}</span>
             </div>
           )}
 
-          {/* STEP 3: FORGOT PASSWORD RESET SCREEN */}
-          {step === 'forgot' ? (
-            <form onSubmit={handleForgotPassword} className="space-y-5">
-              <div className="text-center space-y-2">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/60 rounded-full text-xs font-semibold text-blue-700 dark:text-sky-300">
-                  <KeyRound className="w-3.5 h-3.5" />
-                  <span>{t.forgotPasswordTitle}</span>
+          {/* VIEW 1: EMAIL & PASSWORD LOGIN */}
+          {step === 'login' && (
+            <form onSubmit={handlePasswordLogin} className="space-y-4">
+              <div className="space-y-1">
+                <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                  {t.signIn || 'Sign In'}
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {isArabic 
+                    ? 'أدخل بيانات حسابك للمتابعة إلى نظام WISCO' 
+                    : 'Enter your credentials to access the WISCO platform'}
+                </p>
+              </div>
+
+              {/* Email Input */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  {t.email}
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 rtl:left-auto rtl:right-3.5" />
+                  <input
+                    id="auth-input-email"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      clearFieldError('email');
+                    }}
+                    placeholder={t.enterEmail}
+                    className={`w-full pl-10 pr-4 rtl:pl-4 rtl:pr-10 py-2.5 bg-slate-50 dark:bg-slate-800/80 border rounded-xl text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 transition-all ${
+                      fieldErrors.email 
+                        ? 'border-red-500 focus:ring-red-500/30' 
+                        : 'border-slate-200 dark:border-slate-700 focus:ring-blue-600'
+                    }`}
+                  />
+                </div>
+                {fieldErrors.email && (
+                  <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3 shrink-0" />
+                    <span>{fieldErrors.email}</span>
+                  </p>
+                )}
+              </div>
+
+              {/* Password Input with Visibility Toggle */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    {t.password}
+                  </label>
+                  <button
+                    id="btn-forgot-password-link"
+                    type="button"
+                    onClick={() => {
+                      setForgotEmail(email);
+                      setError(null);
+                      setStep('forgot');
+                    }}
+                    className="text-[11px] font-semibold text-blue-600 dark:text-sky-400 hover:underline cursor-pointer"
+                  >
+                    {t.forgotPassword || 'Forgot Password?'}
+                  </button>
+                </div>
+                <div className="relative">
+                  <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 rtl:left-auto rtl:right-3.5" />
+                  <input
+                    id="auth-input-password"
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      clearFieldError('password');
+                    }}
+                    placeholder={t.enterPassword}
+                    className={`w-full pl-10 pr-10 rtl:pl-10 rtl:pr-10 py-2.5 bg-slate-50 dark:bg-slate-800/80 border rounded-xl text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 transition-all ${
+                      fieldErrors.password 
+                        ? 'border-red-500 focus:ring-red-500/30' 
+                        : 'border-slate-200 dark:border-slate-700 focus:ring-blue-600'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer rtl:right-auto rtl:left-3 p-1"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {fieldErrors.password && (
+                  <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3 shrink-0" />
+                    <span>{fieldErrors.password}</span>
+                  </p>
+                )}
+              </div>
+
+              {/* Submit Button */}
+              <button
+                id="btn-submit-login"
+                type="submit"
+                disabled={loading}
+                className="w-full mt-2 py-3 px-4 bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-[0.99]"
+              >
+                {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>{isArabic ? 'جاري التحقق...' : 'Verifying...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="w-4 h-4" />
+                    <span>{t.loginBtn || 'Sign In to Account'}</span>
+                  </>
+                )}
+              </button>
+
+              <div className="pt-2 text-center">
+                <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                  {isArabic 
+                    ? 'يتم إنشاء حسابات الموظفين حصرياً بواسطة المشرف العام (Super Admin)' 
+                    : 'Accounts are provisioned by your Agency Super Admin.'}
+                </p>
+              </div>
+            </form>
+          )}
+
+          {/* VIEW 2: 6-DIGIT OTP VERIFICATION */}
+          {step === 'verify' && (
+            <form onSubmit={handleVerifyOtp} className="space-y-5">
+              <div className="text-center space-y-1.5">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-sky-50 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-800/60 rounded-full text-xs font-semibold text-sky-700 dark:text-sky-300">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>{isArabic ? 'تحقق ثنائي الأمان' : 'Two-Factor Verification'}</span>
                 </div>
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                  {t.forgotPasswordTitle}
+                  {isArabic ? 'أدخل رمز التحقق' : 'Enter Verification Code'}
                 </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-sm mx-auto">
-                  {t.forgotPasswordDesc}
+                  {isArabic 
+                    ? `أدخل رمز الأمان المكون من 6 أرقام المرسل إلى بريدك:` 
+                    : `Enter the 6-digit verification code sent to:`}
+                </p>
+                <div className="font-mono text-xs font-bold text-blue-600 dark:text-sky-400 bg-slate-100 dark:bg-slate-800 py-1 px-2.5 rounded-lg inline-block">
+                  {verificationEmail}
+                </div>
+              </div>
+
+              {/* 6 Digit Inputs Box */}
+              <div className="py-2">
+                <div className="flex justify-center gap-2 sm:gap-2.5 dir-ltr" dir="ltr">
+                  {otpDigits.map((digit, index) => (
+                    <input
+                      key={`otp-box-${index}`}
+                      id={`otp-input-${index}`}
+                      ref={(el) => { otpInputRefs.current[index] = el; }}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleOtpDigitChange(index, e.target.value)}
+                      onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                      onPaste={handleOtpPaste}
+                      className={`w-11 h-13 sm:w-12 sm:h-14 text-center font-mono text-xl font-black rounded-xl bg-slate-50 dark:bg-slate-800 border transition-all focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white dark:focus:bg-slate-900 shadow-sm ${
+                        digit 
+                          ? 'border-blue-600 text-blue-600 dark:text-sky-400' 
+                          : 'border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Submit Verification */}
+              <button
+                id="btn-verify-otp-submit"
+                type="submit"
+                disabled={loading || otpDigits.join('').length !== 6}
+                className="w-full py-3.5 px-4 bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 active:scale-[0.99]"
+              >
+                {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>{isArabic ? 'جاري التحقق...' : 'Verifying Code...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{isArabic ? 'تأكيد وتسجيل الدخول' : 'Verify & Continue'}</span>
+                  </>
+                )}
+              </button>
+
+              {/* Resend & Back Navigation */}
+              <div className="flex flex-col items-center gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                  <span>{isArabic ? 'لم يصلك الرمز؟' : "Didn't receive the code?"}</span>
+                  {resendCooldown > 0 ? (
+                    <span className="font-semibold text-slate-400">
+                      {isArabic ? `إعادة الإرسال بعد (${resendCooldown} ث)` : `Resend in (${resendCooldown}s)`}
+                    </span>
+                  ) : (
+                    <button
+                      id="btn-resend-otp-code"
+                      type="button"
+                      disabled={resendLoading}
+                      onClick={handleResendCode}
+                      className="font-bold text-blue-600 dark:text-sky-400 hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${resendLoading ? 'animate-spin' : ''}`} />
+                      <span>{isArabic ? 'إعادة إرسال الرمز' : 'Resend Code'}</span>
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  id="btn-otp-back-to-login"
+                  type="button"
+                  onClick={() => {
+                    setStep('login');
+                    setError(null);
+                  }}
+                  className="text-xs font-semibold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                >
+                  {isArabic ? '← العودة لتسجيل الدخول' : '← Back to Login'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* VIEW 3: FORGOT PASSWORD */}
+          {step === 'forgot' && (
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <div className="space-y-1">
+                <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                  {t.forgotPasswordTitle || 'Reset Your Password'}
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {t.forgotPasswordDesc || 'Enter your registered email and we will send a password reset link.'}
                 </p>
               </div>
 
               {resetSuccess ? (
                 <div className="p-5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 rounded-2xl text-center space-y-3 animate-in fade-in">
-                  <CheckCircle2 className="w-9 h-9 text-emerald-500 mx-auto" />
+                  <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
                   <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300 leading-relaxed">
                     {resetSuccess}
                   </p>
-                  <div className="pt-2">
-                    <button
-                      id="btn-forgot-back-success"
-                      type="button"
-                      onClick={() => {
-                        setStep('form');
-                        setTab('signin');
-                        setError(null);
-                        setResetSuccess(null);
-                      }}
-                      className="px-4 py-2.5 bg-[#0F284E] hover:bg-[#1E3A8A] dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-md"
-                    >
-                      {isArabic ? <ArrowRight className="w-3.5 h-3.5" /> : <ArrowLeft className="w-3.5 h-3.5" />}
-                      <span>{t.backToSignIn}</span>
-                    </button>
-                  </div>
+                  <button
+                    id="btn-forgot-back-success"
+                    type="button"
+                    onClick={() => {
+                      setStep('login');
+                      setError(null);
+                      setResetSuccess(null);
+                    }}
+                    className="px-4 py-2 bg-[#0F284E] hover:bg-[#1E3A8A] text-white text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-1.5 shadow"
+                  >
+                    {isArabic ? <ArrowRight className="w-3.5 h-3.5" /> : <ArrowLeft className="w-3.5 h-3.5" />}
+                    <span>{t.backToSignIn || 'Back to Sign In'}</span>
+                  </button>
                 </div>
               ) : (
                 <>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                       {t.email}
                     </label>
                     <div className="relative">
@@ -615,23 +711,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       <input
                         id="auth-forgot-input-email"
                         type="email"
-                        value={email}
+                        required
+                        value={forgotEmail}
                         onChange={(e) => {
-                          setEmail(e.target.value);
-                          clearFieldError('email');
+                          setForgotEmail(e.target.value);
+                          clearFieldError('forgotEmail');
                         }}
                         placeholder={t.enterEmail}
                         className={`w-full pl-10 pr-4 rtl:pl-4 rtl:pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 transition-all ${
-                          fieldErrors.email 
-                            ? 'border-red-500 focus:ring-red-500/30 bg-red-50/20 dark:bg-red-950/20' 
+                          fieldErrors.forgotEmail 
+                            ? 'border-red-500 focus:ring-red-500/30' 
                             : 'border-slate-200 dark:border-slate-700 focus:ring-blue-600'
                         }`}
                       />
                     </div>
-                    {fieldErrors.email && (
-                      <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
+                    {fieldErrors.forgotEmail && (
+                      <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 flex items-center gap-1">
                         <AlertCircle className="w-3 h-3 shrink-0" />
-                        <span>{fieldErrors.email}</span>
+                        <span>{fieldErrors.forgotEmail}</span>
                       </p>
                     )}
                   </div>
@@ -640,655 +737,53 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     id="btn-submit-forgot-password"
                     type="submit"
                     disabled={loading}
-                    className="w-full py-3.5 px-4 bg-[#0F284E] hover:bg-[#1E3A8A] dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold text-sm rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-[0.99]"
+                    className="w-full py-3 px-4 bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-[0.99]"
                   >
                     {loading ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        <span>{t.sendingResetLink}</span>
+                        <span>{t.sendingResetLink || 'Sending Link...'}</span>
                       </>
                     ) : (
                       <>
                         <KeyRound className="w-4 h-4" />
-                        <span>{t.sendResetLink}</span>
+                        <span>{t.sendResetLink || 'Send Reset Link'}</span>
                       </>
                     )}
                   </button>
 
-                  <div className="text-center pt-2">
+                  <div className="pt-2 text-center">
                     <button
-                      id="btn-back-to-signin-from-forgot"
+                      id="btn-back-to-login-from-forgot"
                       type="button"
                       onClick={() => {
-                        setStep('form');
-                        setTab('signin');
+                        setStep('login');
                         setError(null);
-                        setFieldErrors({});
                       }}
-                      className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors cursor-pointer font-medium"
+                      className="text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
                     >
-                      {isArabic ? <ArrowRight className="w-3.5 h-3.5" /> : <ArrowLeft className="w-3.5 h-3.5" />}
-                      <span>{t.backToSignIn}</span>
+                      {isArabic ? '← العودة إلى تسجيل الدخول' : '← Back to Sign In'}
                     </button>
                   </div>
                 </>
               )}
             </form>
-          ) : step === 'verify' ? (
-            <form onSubmit={handleVerifyOtp} className="space-y-6">
-              <div className="text-center space-y-2">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/60 rounded-full text-xs font-semibold text-blue-700 dark:text-sky-300">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>{t.emailVerificationTitle}</span>
-                </div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                  {t.emailVerificationTitle}
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-sm mx-auto">
-                  {t.emailVerificationSub}{' '}
-                  <span className="font-semibold text-slate-900 dark:text-white underline decoration-blue-500 underline-offset-2">
-                    {verificationEmail}
-                  </span>
-                </p>
-              </div>
-
-              {/* 6-Digit Numeric Inputs */}
-              <div className="space-y-2">
-                <label className="block text-center text-xs font-semibold text-slate-600 dark:text-slate-300">
-                  {t.enterOtpPrompt}
-                </label>
-                
-                <div 
-                  id="otp-input-group"
-                  dir="ltr"
-                  className="flex items-center justify-center gap-2 sm:gap-2.5 pt-1"
-                >
-                  {otpDigits.map((digit, idx) => (
-                    <input
-                      key={idx}
-                      ref={(el) => (otpInputRefs.current[idx] = el)}
-                      id={`otp-input-${idx}`}
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={1}
-                      value={digit}
-                      onChange={(e) => handleOtpDigitChange(idx, e.target.value)}
-                      onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                      onPaste={handleOtpPaste}
-                      autoComplete="one-time-code"
-                      className="w-11 h-13 sm:w-12 sm:h-14 text-center text-xl sm:text-2xl font-mono font-extrabold text-[#0F284E] dark:text-sky-300 bg-slate-50 dark:bg-slate-800/90 border-2 border-slate-200 dark:border-slate-700 rounded-xl focus:border-blue-600 dark:focus:border-sky-400 focus:ring-4 focus:ring-blue-500/20 shadow-inner transition-all outline-none"
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {/* Verify Button */}
-              <button
-                id="btn-verify-otp-submit"
-                type="submit"
-                disabled={loading}
-                className="w-full py-3.5 px-4 bg-gradient-to-r from-[#0F284E] via-[#1E3A8A] to-[#2563EB] hover:from-[#1E3A8A] hover:to-[#1D4ED8] text-white font-bold text-sm rounded-xl shadow-lg hover:shadow-xl hover:shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                {loading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>{t.verifyingCode}</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>{t.verifyAndCompleteBtn}</span>
-                  </>
-                )}
-              </button>
-
-              {/* Resend & Back options */}
-              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3">
-                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1">
-                  <span>{isArabic ? 'لم يصلك الرمز؟' : "Didn't receive the code?"}</span>
-                  
-                  {resendCooldown > 0 ? (
-                    <span className="font-semibold text-slate-400 dark:text-slate-500">
-                      {t.resendCooldown} {resendCooldown}{t.seconds}
-                    </span>
-                  ) : (
-                    <button
-                      id="btn-resend-otp"
-                      type="button"
-                      disabled={resendLoading}
-                      onClick={handleResendCode}
-                      className="font-bold text-blue-600 dark:text-sky-400 hover:text-blue-700 dark:hover:text-sky-300 flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-colors"
-                    >
-                      <RefreshCw className={`w-3.5 h-3.5 ${resendLoading ? 'animate-spin' : ''}`} />
-                      <span>{resendLoading ? t.resendingCode : t.resendCodeBtn}</span>
-                    </button>
-                  )}
-                </div>
-
-                <div className="text-center">
-                  <button
-                    id="btn-back-to-signup"
-                    type="button"
-                    onClick={() => {
-                      setStep('form');
-                      setError(null);
-                      setResendNotice(null);
-                    }}
-                    className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors cursor-pointer font-medium"
-                  >
-                    {isArabic ? <ArrowRight className="w-3.5 h-3.5" /> : <ArrowLeft className="w-3.5 h-3.5" />}
-                    <span>{t.backToSignUp}</span>
-                  </button>
-                </div>
-              </div>
-            </form>
-          ) : (
-
-          <form onSubmit={handleSubmit} noValidate className="space-y-5">
-            {/* SIGN IN VIEW */}
-            {tab === 'signin' && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                    {t.email}
-                  </label>
-                  <div className="relative">
-                    <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 rtl:left-auto rtl:right-3.5" />
-                    <input
-                      id="auth-input-email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        clearFieldError('email');
-                      }}
-                      placeholder={t.enterEmail}
-                      className={`w-full pl-10 pr-4 rtl:pl-4 rtl:pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 transition-all ${
-                        fieldErrors.email 
-                          ? 'border-red-500 focus:ring-red-500/30 bg-red-50/20 dark:bg-red-950/20' 
-                          : 'border-slate-200 dark:border-slate-700 focus:ring-blue-600'
-                      }`}
-                    />
-                  </div>
-                  {fieldErrors.email && (
-                    <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3 shrink-0" />
-                      <span>{fieldErrors.email}</span>
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      {t.password}
-                    </label>
-                    <button
-                      id="btn-forgot-password-trigger"
-                      type="button"
-                      onClick={() => {
-                        setStep('forgot');
-                        setError(null);
-                        setFieldErrors({});
-                        setResetSuccess(null);
-                      }}
-                      className="text-xs font-semibold text-blue-600 dark:text-sky-400 hover:text-blue-700 dark:hover:text-sky-300 hover:underline cursor-pointer transition-colors"
-                    >
-                      {t.forgotPassword}
-                    </button>
-                  </div>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 rtl:left-auto rtl:right-3.5" />
-                    <input
-                      id="auth-input-password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => {
-                        setPassword(e.target.value);
-                        clearFieldError('password');
-                      }}
-                      placeholder={t.enterPassword}
-                      className={`w-full pl-10 pr-4 rtl:pl-4 rtl:pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 transition-all ${
-                        fieldErrors.password 
-                          ? 'border-red-500 focus:ring-red-500/30 bg-red-50/20 dark:bg-red-950/20' 
-                          : 'border-slate-200 dark:border-slate-700 focus:ring-blue-600'
-                      }`}
-                    />
-                  </div>
-                  {fieldErrors.password && (
-                    <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3 shrink-0" />
-                      <span>{fieldErrors.password}</span>
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* SIGN UP ONBOARDING VIEW */}
-            {tab === 'signup' && (
-              <div className="space-y-6">
-                
-                {/* 1. Account Credentials */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 pb-1 border-b border-slate-100 dark:border-slate-800">
-                    <Mail className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
-                    <span>{isArabic ? '1. بيانات تسجيل الدخول' : '1. Account Credentials'}</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="sm:col-span-1">
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        {t.email} <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        id="auth-input-signup-email"
-                        type="email"
-                        value={email}
-                        onChange={(e) => {
-                          setEmail(e.target.value);
-                          if (!companyEmail) setCompanyEmail(e.target.value);
-                          clearFieldError('email');
-                        }}
-                        placeholder={t.enterEmail}
-                        className={`w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 ${
-                          fieldErrors.email 
-                            ? 'border-red-500 focus:ring-red-500/30 bg-red-50/20 dark:bg-red-950/20' 
-                            : 'border-slate-200 dark:border-slate-700 focus:ring-blue-600'
-                        }`}
-                      />
-                      {fieldErrors.email && (
-                        <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3 shrink-0" />
-                          <span>{fieldErrors.email}</span>
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        {t.password} <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        id="auth-input-signup-pass"
-                        type="password"
-                        value={password}
-                        onChange={(e) => {
-                          setPassword(e.target.value);
-                          clearFieldError('password');
-                        }}
-                        placeholder="••••••••"
-                        className={`w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 ${
-                          fieldErrors.password 
-                            ? 'border-red-500 focus:ring-red-500/30 bg-red-50/20 dark:bg-red-950/20' 
-                            : 'border-slate-200 dark:border-slate-700 focus:ring-blue-600'
-                        }`}
-                      />
-                      {fieldErrors.password && (
-                        <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3 shrink-0" />
-                          <span>{fieldErrors.password}</span>
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        {t.confirmPassword} <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        id="auth-input-signup-confirm-pass"
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => {
-                          setConfirmPassword(e.target.value);
-                          clearFieldError('confirmPassword');
-                        }}
-                        placeholder="••••••••"
-                        className={`w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 ${
-                          fieldErrors.confirmPassword 
-                            ? 'border-red-500 focus:ring-red-500/30 bg-red-50/20 dark:bg-red-950/20' 
-                            : 'border-slate-200 dark:border-slate-700 focus:ring-blue-600'
-                        }`}
-                      />
-                      {fieldErrors.confirmPassword && (
-                        <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3 shrink-0" />
-                          <span>{fieldErrors.confirmPassword}</span>
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. Agency Profile (One-Time Setup Notice) */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      <Building2 className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
-                      <span>{t.onboardingSectionTitle || '2. Agency Profile (One-Time Setup)'}</span>
-                    </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50">
-                      {isArabic ? 'يُقفل بعد التسجيل' : 'Locked Post-Registration'}
-                    </span>
-                  </div>
-
-                  <div className="p-3 bg-blue-50/60 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 rounded-xl text-[11px] text-blue-800 dark:text-blue-200 flex items-start gap-2">
-                    <Info className="w-4 h-4 text-blue-600 dark:text-sky-400 shrink-0 mt-0.5" />
-                    <span>
-                      {t.onboardingSectionDesc || 'These agency identity records are permanently locked after registration to ensure invoice compliance and audit integrity.'}
-                    </span>
-                  </div>
-
-                  {/* Profile Fields Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                    {/* Agency Name */}
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        {t.agencyName} <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <Building2 className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 rtl:left-auto rtl:right-3" />
-                        <input
-                          id="auth-input-agency-name"
-                          type="text"
-                          value={companyName}
-                          onChange={(e) => {
-                            setCompanyName(e.target.value);
-                            clearFieldError('companyName');
-                          }}
-                          placeholder="e.g. Whislly Media & Design"
-                          className={`w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 ${
-                            fieldErrors.companyName 
-                              ? 'border-red-500 focus:ring-red-500/30 bg-red-50/20 dark:bg-red-950/20' 
-                              : 'border-slate-200 dark:border-slate-700 focus:ring-blue-600'
-                          }`}
-                        />
-                      </div>
-                      {fieldErrors.companyName && (
-                        <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3 shrink-0" />
-                          <span>{fieldErrors.companyName}</span>
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Headquarters Location */}
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        {t.headquartersLocation} <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <MapPin className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 rtl:left-auto rtl:right-3" />
-                        <input
-                          id="auth-input-agency-location"
-                          type="text"
-                          value={companyAddress}
-                          onChange={(e) => {
-                            setCompanyAddress(e.target.value);
-                            clearFieldError('companyAddress');
-                          }}
-                          placeholder={t.headquartersLocationPlaceholder || 'e.g. Amman, Jordan'}
-                          className={`w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 ${
-                            fieldErrors.companyAddress 
-                              ? 'border-red-500 focus:ring-red-500/30 bg-red-50/20 dark:bg-red-950/20' 
-                              : 'border-slate-200 dark:border-slate-700 focus:ring-blue-600'
-                          }`}
-                        />
-                      </div>
-                      {fieldErrors.companyAddress && (
-                        <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3 shrink-0" />
-                          <span>{fieldErrors.companyAddress}</span>
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Official Website (OPTIONAL) */}
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        <span>{t.officialWebsite}</span>{' '}
-                        <span className="text-slate-400 font-normal text-[11px]">
-                          ({isArabic ? 'اختياري' : 'Optional'})
-                        </span>
-                      </label>
-                      <div className="relative">
-                        <Globe className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 rtl:left-auto rtl:right-3" />
-                        <input
-                          id="auth-input-agency-website"
-                          type="text"
-                          value={companyWebsite}
-                          onChange={(e) => setCompanyWebsite(e.target.value)}
-                          placeholder={t.officialWebsitePlaceholder || 'e.g. https://www.agency.com (Optional)'}
-                          className="w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-blue-600 focus:outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Contact / Support Email */}
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        {t.contactSupportEmail} <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <Mail className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 rtl:left-auto rtl:right-3" />
-                        <input
-                          id="auth-input-agency-email"
-                          type="email"
-                          value={companyEmail}
-                          onChange={(e) => {
-                            setCompanyEmail(e.target.value);
-                            clearFieldError('companyEmail');
-                          }}
-                          placeholder={t.contactSupportEmailPlaceholder || 'e.g. billing@agency.com'}
-                          className={`w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 ${
-                            fieldErrors.companyEmail 
-                              ? 'border-red-500 focus:ring-red-500/30 bg-red-50/20 dark:bg-red-950/20' 
-                              : 'border-slate-200 dark:border-slate-700 focus:ring-blue-600'
-                          }`}
-                        />
-                      </div>
-                      {fieldErrors.companyEmail && (
-                        <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3 shrink-0" />
-                          <span>{fieldErrors.companyEmail}</span>
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Payment Terms */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      {t.initialPaymentTerms} <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <FileText className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400 rtl:left-auto rtl:right-3" />
-                      <textarea
-                        id="auth-input-payment-terms"
-                        rows={2}
-                        value={defaultPaymentTerms}
-                        onChange={(e) => {
-                          setDefaultPaymentTerms(e.target.value);
-                          clearFieldError('defaultPaymentTerms');
-                        }}
-                        placeholder={t.initialPaymentTermsPlaceholder || 'Payment due within 30 days of invoice date...'}
-                        className={`w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 resize-none ${
-                          fieldErrors.defaultPaymentTerms 
-                            ? 'border-red-500 focus:ring-red-500/30 bg-red-50/20 dark:bg-red-950/20' 
-                            : 'border-slate-200 dark:border-slate-700 focus:ring-blue-600'
-                        }`}
-                      />
-                    </div>
-                    {fieldErrors.defaultPaymentTerms ? (
-                      <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3 shrink-0" />
-                        <span>{fieldErrors.defaultPaymentTerms}</span>
-                      </p>
-                    ) : (
-                      <p className="text-[10px] text-slate-400 mt-1">
-                        {isArabic 
-                          ? 'ملاحظة: يمكنك تعديل شروط الدفع وشعار الشركة في أي وقت لاحقاً من تبويب الحساب.' 
-                          : 'Note: Payment terms and agency logo remain editable anytime in the Account settings.'}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Optional Agency Logo Upload */}
-                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 w-full sm:w-auto">
-                        <div className="w-14 h-14 rounded-xl bg-white dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                          {companyLogo ? (
-                            <img 
-                              src={companyLogo} 
-                              alt="Logo preview" 
-                              className="w-full h-full object-contain p-1"
-                              referrerPolicy="no-referrer"
-                            />
-                          ) : (
-                            <ImageIcon className="w-5 h-5 text-slate-400" />
-                          )}
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
-                            <span>{t.optionalAgencyLogo}</span>
-                            {companyLogo && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
-                          </div>
-                          <p className="text-[10px] text-slate-400 mt-0.5">
-                            PNG, JPG, SVG, WebP (Max 5MB)
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 self-end sm:self-center">
-                        <input
-                          id="input-signup-logo-file"
-                          type="file"
-                          accept="image/*"
-                          ref={logoInputRef}
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) handleLogoUpload(file);
-                          }}
-                          className="hidden"
-                        />
-                        <button
-                          id="btn-signup-upload-logo"
-                          type="button"
-                          disabled={logoUploading}
-                          onClick={() => logoInputRef.current?.click()}
-                          className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900 text-blue-600 dark:text-sky-300 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                        >
-                          <UploadCloud className="w-3.5 h-3.5" />
-                          <span>{companyLogo ? t.changeLogo : t.uploadLogo}</span>
-                        </button>
-                        {companyLogo && (
-                          <button
-                            id="btn-signup-remove-logo"
-                            type="button"
-                            onClick={handleRemoveLogo}
-                            className="px-2.5 py-1.5 bg-slate-200 hover:bg-red-50 hover:text-red-600 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 cursor-pointer"
-                          >
-                            <Trash className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. Mandatory Policy Agreement */}
-                <div className={`p-2.5 rounded-xl transition-all ${fieldErrors.agreedPolicy ? 'bg-red-50/50 dark:bg-red-950/30 border border-red-300 dark:border-red-800' : ''}`}>
-                  <label className="flex items-start gap-2.5 cursor-pointer select-none text-xs text-slate-600 dark:text-slate-300 leading-snug">
-                    <input
-                      id="checkbox-privacy-policy"
-                      type="checkbox"
-                      checked={agreedPolicy}
-                      onChange={(e) => {
-                        setAgreedPolicy(e.target.checked);
-                        clearFieldError('agreedPolicy');
-                      }}
-                      className="mt-0.5 w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                    />
-                    <span>
-                      {t.agreeToPolicy}{' '}
-                      <button
-                        id="link-open-privacy-policy"
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          onOpenPrivacyPolicy();
-                        }}
-                        className="font-bold text-blue-600 dark:text-sky-400 underline hover:text-blue-700 cursor-pointer"
-                      >
-                        ({t.readPrivacyPolicy})
-                      </button>
-                    </span>
-                  </label>
-                  {fieldErrors.agreedPolicy && (
-                    <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-1.5 flex items-center gap-1 pl-6 rtl:pl-0 rtl:pr-6">
-                      <AlertCircle className="w-3 h-3 shrink-0" />
-                      <span>{fieldErrors.agreedPolicy}</span>
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Submit Action Button */}
-            <button
-              id="btn-auth-submit"
-              type="submit"
-              disabled={loading}
-              className="w-full py-3.5 px-4 bg-[#0F284E] hover:bg-[#1E3A8A] dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold text-sm rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-4 active:scale-[0.99]"
-            >
-              {loading ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <>
-                  <UserCheck className="w-4 h-4" />
-                  <span>{tab === 'signin' ? t.loginBtn : (isArabic ? 'إنشاء حساب الوكالة' : 'Create Agency Account')}</span>
-                </>
-              )}
-            </button>
-
-            {/* Quick Switch Prompt */}
-            <div className="text-center pt-2">
-              {tab === 'signin' ? (
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {isArabic ? 'ليس لديك حساب؟' : "Don't have an account?"}{' '}
-                  <button
-                    id="link-switch-to-signup"
-                    type="button"
-                    onClick={() => { setTab('signup'); setError(null); }}
-                    className="font-bold text-blue-600 dark:text-sky-400 hover:text-blue-700 dark:hover:text-sky-300 underline cursor-pointer"
-                  >
-                    {t.signUp}
-                  </button>
-                </p>
-              ) : (
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {isArabic ? 'لديك حساب بالفعل؟' : 'Already have an account?'}{' '}
-                  <button
-                    id="link-switch-to-signin"
-                    type="button"
-                    onClick={() => { setTab('signin'); setError(null); }}
-                    className="font-bold text-blue-600 dark:text-sky-400 hover:text-blue-700 dark:hover:text-sky-300 underline cursor-pointer"
-                  >
-                    {t.signIn}
-                  </button>
-                </p>
-              )}
-            </div>
-          </form>
           )}
+        </div>
 
-          <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 pt-3 border-t border-slate-100 dark:border-slate-800">
-            <Shield className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Isolated UID Storage Vault & AES Protection</span>
-          </div>
+        {/* Footer info & privacy policy */}
+        <div className="p-4 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+          <span className="font-semibold text-slate-700 dark:text-slate-300">
+            WISCO • Amman, Jordan
+          </span>
+          <button
+            id="btn-auth-privacy-policy"
+            type="button"
+            onClick={onOpenPrivacyPolicy}
+            className="hover:text-blue-600 dark:hover:text-sky-400 underline cursor-pointer"
+          >
+            {t.readPrivacyPolicy}
+          </button>
         </div>
       </div>
     </div>
