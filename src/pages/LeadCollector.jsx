@@ -11,6 +11,11 @@ export default function LeadCollector() {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryTag, setCategoryTag] = useState('');
 
+  // Pagination State
+  const [nextPageToken, setNextPageToken] = useState(null);
+  const [activeQuery, setActiveQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState('');
+
   // Table Filters
   const [tableSearch, setTableSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
@@ -49,7 +54,7 @@ export default function LeadCollector() {
     loadLeads();
   }, []);
 
-  // 2. Trigger automatic collection via your Vercel endpoint with user_id attached
+  // 2. Trigger initial collection via your Vercel endpoint (Page 1)
   const handleCollectPlaces = async (e) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
@@ -83,8 +88,12 @@ export default function LeadCollector() {
       if (!res.ok) throw new Error(data?.error || 'Failed to fetch places');
 
       alert(data.message || 'Collection successful!');
-      setSearchQuery('');
-      setCategoryTag('');
+      
+      // Store active search and token for "Load More"
+      setActiveQuery(searchQuery);
+      setActiveCategory(categoryTag);
+      setNextPageToken(data.nextPageToken || null);
+
       loadLeads();
     } catch (err) {
       alert(`Error: ${err.message}`);
@@ -93,7 +102,53 @@ export default function LeadCollector() {
     }
   };
 
-  // 3. Filter Table Data
+  // 3. Trigger next page collection using nextPageToken (Pages 2 & 3)
+  const handleLoadMorePlaces = async () => {
+    if (!nextPageToken || !activeQuery) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      alert('Please log in to collect leads.');
+      return;
+    }
+
+    setFetchingApi(true);
+    try {
+      const res = await fetch('/api/fetch-places', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          query: activeQuery, 
+          category: activeCategory,
+          userId: user.id,
+          pageToken: nextPageToken // Pass the pagination token back
+        })
+      });
+
+      const rawText = await res.text();
+      let data;
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        throw new Error(rawText || `Server responded with status ${res.status}`);
+      }
+
+      if (!res.ok) throw new Error(data?.error || 'Failed to fetch places');
+
+      alert(data.message || 'Next batch collected successfully!');
+      
+      // Update token (will be null after page 3)
+      setNextPageToken(data.nextPageToken || null);
+
+      loadLeads();
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setFetchingApi(false);
+    }
+  };
+
+  // 4. Filter Table Data
   const filteredLeads = leads.filter((item) => {
     const matchesSearch =
       item.name?.toLowerCase().includes(tableSearch.toLowerCase()) ||
@@ -110,7 +165,7 @@ export default function LeadCollector() {
     return matchesSearch && matchesCategory && matchesStart && matchesEnd;
   });
 
-  // 4. Export to Excel
+  // 5. Export to Excel
   const exportToExcel = () => {
     if (filteredLeads.length === 0) {
       alert('No data to export.');
@@ -140,38 +195,66 @@ export default function LeadCollector() {
       <h2 style={{ marginBottom: '16px', fontSize: '22px', fontWeight: 'bold' }}>Lead Collection & Discovery</h2>
 
       {/* Auto-Discovery Bar */}
-      <form onSubmit={handleCollectPlaces} style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
-        <input
-          type="text"
-          placeholder="e.g. Restaurants in Amman, Gyms in Dubai..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          required
-          style={{ flex: 2, padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
-        />
-        <input
-          type="text"
-          placeholder="Custom Category Tag (e.g. Hospitality)"
-          value={categoryTag}
-          onChange={(e) => setCategoryTag(e.target.value)}
-          style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
-        />
-        <button 
-          type="submit" 
-          disabled={fetchingApi} 
-          style={{ 
-            padding: '10px 20px', 
-            cursor: fetchingApi ? 'not-allowed' : 'pointer',
-            backgroundColor: '#2563EB',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '8px',
-            fontWeight: '600'
-          }}
-        >
-          {fetchingApi ? 'Collecting...' : 'Collect Places'}
-        </button>
-      </form>
+      <div style={{ marginBottom: '24px' }}>
+        <form onSubmit={handleCollectPlaces} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+          <input
+            type="text"
+            placeholder="e.g. Restaurants in Amman, Gyms in Dubai..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            required
+            style={{ flex: 2, padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+          />
+          <input
+            type="text"
+            placeholder="Custom Category Tag (e.g. Hospitality)"
+            value={categoryTag}
+            onChange={(e) => setCategoryTag(e.target.value)}
+            style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+          />
+          <button 
+            type="submit" 
+            disabled={fetchingApi} 
+            style={{ 
+              padding: '10px 20px', 
+              cursor: fetchingApi ? 'not-allowed' : 'pointer',
+              backgroundColor: '#2563EB',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: '600'
+            }}
+          >
+            {fetchingApi ? 'Collecting...' : 'Collect Places'}
+          </button>
+        </form>
+
+        {/* Load More Button: shows when nextPageToken exists */}
+        {nextPageToken && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
+            <button
+              type="button"
+              onClick={handleLoadMorePlaces}
+              disabled={fetchingApi}
+              style={{
+                padding: '8px 16px',
+                cursor: fetchingApi ? 'not-allowed' : 'pointer',
+                backgroundColor: '#0f172a',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                fontWeight: '600',
+                fontSize: '13px'
+              }}
+            >
+              {fetchingApi ? 'Fetching next batch...' : `Load More Leads for "${activeQuery}"`}
+            </button>
+            <span style={{ fontSize: '12px', color: '#64748b' }}>
+              More places are available from Google for this search.
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* Table Controls */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', marginBottom: '16px' }}>
