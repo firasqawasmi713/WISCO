@@ -3,7 +3,9 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { query, category, userId, limit = 20 } = req.body || {};
+  // 1. Accept pageToken along with query, category, userId, and limit
+  const { query, category, userId, limit = 20, pageToken = null } = req.body || {};
+
   if (!query) {
     return res.status(400).json({ error: 'Search query is required' });
   }
@@ -30,7 +32,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    // 1. Check monthly safety limit (3,000 places total)
+    // 2. Check monthly safety limit (3,000 places total)
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
@@ -55,19 +57,19 @@ export default async function handler(req: any, res: any) {
       return res.status(429).json({ error: 'Free monthly quota safety limit (3,000) reached.' });
     }
 
-    // 2. Fetch Places from Google (supporting pagination up to requested limit)
-    const targetCount = Math.min(Math.max(Number(limit) || 20, 1), 60); // Cap per run at 60
+    // 3. Fetch Places from Google Places API (New)
+    const targetCount = Math.min(Math.max(Number(limit) || 20, 1), 60);
     let accumulatedPlaces: any[] = [];
-    let nextPageToken: string | null = null;
+    let currentToken: string | null = pageToken;
+    let returnedNextPageToken: string | null = null;
 
     do {
-      const pageSize = Math.min(targetCount - accumulatedPlaces.length, 20);
-      const payload: any = {
-        textQuery: query,
-        pageSize: pageSize
+      const payload: Record<string, any> = {
+        textQuery: query
       };
-      if (nextPageToken) {
-        payload.pageToken = nextPageToken;
+
+      if (currentToken) {
+        payload.pageToken = currentToken;
       }
 
       const googleRes = await fetch('https://places.googleapis.com/v1/places:searchText', {
@@ -90,21 +92,24 @@ export default async function handler(req: any, res: any) {
         accumulatedPlaces.push(...data.places);
       }
 
-      nextPageToken = data.nextPageToken || null;
+      returnedNextPageToken = data.nextPageToken || null;
+      currentToken = returnedNextPageToken;
 
-      // Google requires a short pause between page tokens
-      if (nextPageToken && accumulatedPlaces.length < targetCount) {
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-      } else {
+      // Stop if we don't need more places to fulfill the current limit or if no further pages exist
+      if (!currentToken || accumulatedPlaces.length >= targetCount) {
         break;
       }
-    } while (accumulatedPlaces.length < targetCount && nextPageToken);
+    } while (accumulatedPlaces.length < targetCount && currentToken);
 
     if (accumulatedPlaces.length === 0) {
-      return res.status(200).json({ message: 'No places found for this query', inserted: 0 });
+      return res.status(200).json({ 
+        message: 'No places found for this query', 
+        inserted: 0,
+        nextPageToken: null 
+      });
     }
 
-    // 3. Format records
+    // 4. Format records for DB upsert
     const leadsToInsert = accumulatedPlaces.map((place: any) => ({
       user_id: userId,
       place_id: place.id,
@@ -115,7 +120,7 @@ export default async function handler(req: any, res: any) {
       email: null
     }));
 
-    // 4. Upsert to Supabase: ignores existing duplicates for this specific user
+    // 5. Upsert to Supabase: ignores existing duplicates for this specific user
     const insertRes = await fetch(`${supabaseUrl}/rest/v1/business_leads?on_conflict=user_id,place_id`, {
       method: 'POST',
       headers: {
@@ -136,10 +141,12 @@ export default async function handler(req: any, res: any) {
     const newCount = Array.isArray(insertedRows) ? insertedRows.length : 0;
     const dupCount = leadsToInsert.length - newCount;
 
+    // 6. Return results and the next page token
     return res.status(200).json({
       success: true,
       found: leadsToInsert.length,
       inserted: newCount,
+      nextPageToken: returnedNextPageToken,
       message: newCount > 0 
         ? `Added ${newCount} new leads (${dupCount} duplicate places skipped).`
         : `All ${leadsToInsert.length} places are already saved in your leads table.`
