@@ -201,19 +201,25 @@
     display: none !important;
   }
 }
-/* --- Driver.js Animated Tour Overrides --- */
+
+/* ==========================================================================
+   Driver.js Animated Tour Overrides (Fixed High-Contrast Typography)
+   ========================================================================== */
+
 .animated-tour-popover {
-  background: #101F3C !important;
+  background-color: #0d1a33 !important;
+  color: #ffffff !important;
   border: 1px solid rgba(59, 130, 246, 0.4) !important;
-  box-shadow: 0 0 25px rgba(59, 130, 246, 0.2), 0 20px 25px -5px rgba(0, 0, 0, 0.5) !important;
+  box-shadow: 0 0 30px rgba(37, 99, 235, 0.25), 0 20px 25px -5px rgba(0, 0, 0, 0.6) !important;
   border-radius: 16px !important;
+  padding: 16px !important;
   animation: popoverFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes popoverFadeIn {
   from {
     opacity: 0;
-    transform: scale(0.92) translateY(6px);
+    transform: scale(0.94) translateY(4px);
   }
   to {
     opacity: 1;
@@ -221,23 +227,93 @@
   }
 }
 
+/* Popover Title */
+.animated-tour-popover .driver-popover-title {
+  color: #ffffff !important;
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.01em !important;
+  margin-bottom: 6px !important;
+}
+
+/* Popover Description Text (Solves Grayed Out Bug) */
+.animated-tour-popover .driver-popover-description {
+  color: #e2e8f0 !important; /* Crisp readable light slate */
+  font-size: 0.85rem !important;
+  line-height: 1.55 !important;
+  font-weight: 400 !important;
+}
+
+/* Progress indicator ("1 of 4") */
+.animated-tour-popover .driver-popover-progress-text {
+  color: #94a3b8 !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+}
+
+/* Close (X) button */
+.animated-tour-popover .driver-popover-close-btn {
+  color: #94a3b8 !important;
+  transition: color 0.15s ease !important;
+}
+
+.animated-tour-popover .driver-popover-close-btn:hover {
+  color: #ffffff !important;
+}
+
+/* Arrow styling matching popover container */
+.animated-tour-popover.driver-popover-arrow-side-top .driver-popover-arrow {
+  border-bottom-color: #0d1a33 !important;
+}
+.animated-tour-popover.driver-popover-arrow-side-bottom .driver-popover-arrow {
+  border-top-color: #0d1a33 !important;
+}
+.animated-tour-popover.driver-popover-arrow-side-left .driver-popover-arrow {
+  border-right-color: #0d1a33 !important;
+}
+.animated-tour-popover.driver-popover-arrow-side-right .driver-popover-arrow {
+  border-left-color: #0d1a33 !important;
+}
+
+/* Stage Ring around Active Highlighted Element */
 .driver-overlay-stage {
-  box-shadow: 0 0 0 2px #3B82F6, 0 0 20px rgba(59, 130, 246, 0.4) !important;
+  box-shadow: 0 0 0 2px #3B82F6, 0 0 24px rgba(59, 130, 246, 0.45) !important;
   transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
-.driver-popover-next-btn {
+/* Next / Finish Button */
+.animated-tour-popover .driver-popover-next-btn {
   background-color: #2563EB !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 6px 14px !important;
+  font-weight: 600 !important;
+  font-size: 0.75rem !important;
+  text-shadow: none !important;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35) !important;
   transition: transform 0.15s ease, background-color 0.15s ease !important;
 }
 
-.driver-popover-next-btn:hover {
+.animated-tour-popover .driver-popover-next-btn:hover {
   background-color: #1D4ED8 !important;
   transform: translateY(-1px);
 }
 
-.driver-popover-prev-btn {
+/* Previous Button */
+.animated-tour-popover .driver-popover-prev-btn {
   background-color: rgba(255, 255, 255, 0.08) !important;
-  color: #94A3B8 !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #cbd5e1 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 8px !important;
+  padding: 6px 12px !important;
+  font-weight: 600 !important;
+  font-size: 0.75rem !important;
+  text-shadow: none !important;
+  transition: background-color 0.15s ease, color 0.15s ease !important;
+}
+
+.animated-tour-popover .driver-popover-prev-btn:hover {
+  background-color: rgba(255, 255, 255, 0.16) !important;
+  color: #ffffff !important;
 }
