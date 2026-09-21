@@ -85,7 +85,6 @@ export const DashboardTour: React.FC<DashboardTourProps> = ({
   useEffect(() => {
     if (!isOpen) return;
 
-    // Scroll active element into view if target element exists
     const targetElem = document.getElementById(step.targetId);
     if (targetElem) {
       targetElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -126,7 +125,7 @@ export const DashboardTour: React.FC<DashboardTourProps> = ({
   return (
     <div 
       id="wisco-dashboard-tour-overlay"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fadeIn"
       role="dialog"
       aria-modal="true"
       aria-labelledby="tour-step-title"
@@ -138,14 +137,14 @@ export const DashboardTour: React.FC<DashboardTourProps> = ({
         {/* Header Ribbon */}
         <div className="bg-gradient-to-r from-[#0F284E] via-[#1E3A8A] to-[#2563EB] px-6 py-4 text-white flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-lg bg-white/10 backdrop-blur-md">
+            <div className="p-1.5 rounded-lg bg-white/10 backdrop-blur-md shrink-0">
               {step.icon}
             </div>
             <div>
               <p className="text-[11px] uppercase tracking-wider text-sky-200 font-bold">
                 {isArabic ? `الجولة التعريفية • الخطوة ${currentStepIdx + 1} من ${totalSteps}` : `Product Tour • Step ${currentStepIdx + 1} of ${totalSteps}`}
               </p>
-              <h3 id="tour-step-title" className="text-base sm:text-lg font-bold text-white leading-tight">
+              <h3 id="tour-step-title" className="text-base sm:text-lg font-extrabold text-white leading-tight mt-0.5">
                 {isArabic ? step.titleAr : step.titleEn}
               </h3>
             </div>
@@ -155,7 +154,7 @@ export const DashboardTour: React.FC<DashboardTourProps> = ({
             id="btn-tour-close"
             type="button"
             onClick={handleSkip}
-            className="text-sky-200 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+            className="text-sky-200 hover:text-white p-1.5 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
             title={isArabic ? 'إغلاق' : 'Close'}
           >
             <X className="w-5 h-5" />
@@ -163,8 +162,8 @@ export const DashboardTour: React.FC<DashboardTourProps> = ({
         </div>
 
         {/* Content Body */}
-        <div className="p-6 space-y-5">
-          <p className="text-slate-600 dark:text-slate-300 text-sm sm:text-base leading-relaxed">
+        <div className="p-6 space-y-6">
+          <p className="text-slate-700 dark:text-slate-100 text-sm sm:text-base leading-relaxed font-normal">
             {isArabic ? step.descriptionAr : step.descriptionEn}
           </p>
 
@@ -178,8 +177,8 @@ export const DashboardTour: React.FC<DashboardTourProps> = ({
                   onClick={() => setCurrentStepIdx(idx)}
                   className={`h-2 rounded-full transition-all cursor-pointer ${
                     idx === currentStepIdx 
-                      ? 'w-6 bg-blue-600 dark:bg-sky-400' 
-                      : 'w-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600'
+                      ? 'w-7 bg-blue-600 dark:bg-sky-400' 
+                      : 'w-2 bg-slate-300 dark:bg-slate-700 hover:bg-slate-400 dark:hover:bg-slate-600'
                   }`}
                   title={isArabic ? `الخطوة ${idx + 1}` : `Step ${idx + 1}`}
                 />
@@ -190,7 +189,7 @@ export const DashboardTour: React.FC<DashboardTourProps> = ({
               id="btn-tour-skip-link"
               type="button"
               onClick={handleSkip}
-              className="text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer"
+              className="text-xs font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer transition-colors"
             >
               {isArabic ? 'تخطي الجولة' : 'Skip tour'}
             </button>
@@ -203,10 +202,10 @@ export const DashboardTour: React.FC<DashboardTourProps> = ({
               type="button"
               onClick={handlePrev}
               disabled={currentStepIdx === 0}
-              className={`px-4 py-2 text-xs sm:text-sm font-bold rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-4 py-2 text-xs sm:text-sm font-semibold rounded-xl border flex items-center gap-1.5 transition-all cursor-pointer ${
                 currentStepIdx === 0 
-                  ? 'opacity-40 cursor-not-allowed text-slate-400 dark:text-slate-600' 
-                  : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  ? 'opacity-30 cursor-not-allowed text-slate-400 dark:text-slate-600 border-slate-200 dark:border-slate-800' 
+                  : 'text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-95'
               }`}
             >
               <ChevronLeft className="w-4 h-4 rtl:rotate-180" />
@@ -217,7 +216,7 @@ export const DashboardTour: React.FC<DashboardTourProps> = ({
               id="btn-tour-next"
               type="button"
               onClick={handleNext}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 cursor-pointer"
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm rounded-xl shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
             >
               <span>{isLastStep ? (isArabic ? 'إنهاء واستكشاف' : 'Finish & Explore') : (isArabic ? 'التالي' : 'Next')}</span>
               {isLastStep ? (
